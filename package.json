@@ -13,7 +13,8 @@
     "fetch": "tsx cli/fetch.ts",
     "scan": "tsx cli/scan.ts",
     "backtest": "tsx cli/backtest.ts",
-    "inspect": "tsx cli/inspect.ts"
+    "inspect": "tsx cli/inspect.ts",
+    "why": "tsx cli/why.ts"
   },
   "dependencies": {
     "react": "^19.3.1",

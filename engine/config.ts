@@ -29,7 +29,11 @@ export interface Params {
    * tightness are exempt: two 7% dips side by side are one tight shelf, not looseness.
    */
   maxStepRatio: number;
-  /** A pivot is a pause, not a dip: at least one week of sessions since its high. */
+  /**
+   * A pivot is a pause, not a dip: this many sessions since its high. Four is the
+   * shortest pivot in Minervini's own examples (MercadoLibre, December 2007:
+   * high on the 3rd, breakout on the 10th).
+   */
   minFinalBars: number;
   /**
    * Median daily true range in the pivot area over the median in the rest of the base.
@@ -46,7 +50,9 @@ export interface Params {
    * A pullback counts as a contraction only if it is deeper than `noiseMult` times the
    * median daily true range of the stretch it sits in, and never less than `noiseFloor`.
    * Scaling by the local bar size is what lets a 3% pivot count in a quiet stock while a
-   * 3% wiggle in a wild one does not.
+   * 3% wiggle in a wild one does not. 1.25 is the largest multiple that still counts
+   * the 6.6% third contraction Minervini marks on MercadoLibre in December 2007, when
+   * the stock's median daily range was 4.6%.
    */
   noiseMult: number;
   noiseFloor: number;
@@ -75,11 +81,11 @@ export const DEFAULTS: Params = {
   maxFinalDepth: 0.1,
   maxOverallRatio: 0.5,
   maxStepRatio: 0.75,
-  minFinalBars: 5,
+  minFinalBars: 4,
   maxRangeRatio: 0.85,
   pinRange: 0.005,
   pinRatio: 0.2,
-  noiseMult: 1.5,
+  noiseMult: 1.25,
   noiseFloor: 0.02,
   buyZone: 0.05,
   rsMin: 70,

@@ -254,17 +254,22 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     push(md.p, md.q);
     k = md.q;
   }
+  // First bar after a contraction's low that trades above its high.
+  const breakoutOf = (c: Contraction): number => {
+    for (let j = c.lo + 1; j <= t; j++) if (h[j] > c.high) return j;
+    return -1;
+  };
+  // A contraction only a few sessions old is not yet a pivot. While the one before it is
+  // intact it remains the pivot, and the young dip is simply part of its pivot area.
+  let bo = breakoutOf(cons[cons.length - 1]);
+  while (cons.length >= 2) {
+    const c = cons[cons.length - 1];
+    if ((bo >= 0 ? bo - 1 : t) - c.hi >= P.minFinalBars) break;
+    cons.pop();
+    bo = breakoutOf(cons[cons.length - 1]);
+  }
   const K = cons.length;
   const last = cons[K - 1];
-
-  // First bar after the final low that trades above the final contraction's high.
-  let bo = -1;
-  for (let j = last.lo + 1; j <= t; j++) {
-    if (h[j] > last.high) {
-      bo = j;
-      break;
-    }
-  }
   const endF = bo >= 0 ? bo - 1 : t;
   for (let i = 0; i < K; i++) {
     const con = cons[i];

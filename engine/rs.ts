@@ -1,14 +1,25 @@
 import type { Bars } from "./types";
 
 /**
- * Weighted 12-month performance, the usual stand-in for IBD's RS score:
- * the latest quarter counts double. A stock younger than a window is measured
- * from its first bar for that window.
+ * Weighted 12-month performance in the manner IBD describes its RS score: the four
+ * most recent quarters' returns, the latest weighted 40% and the other three 20%
+ * each. Quarters are separate (non-overlapping) 63-session windows, so a leader that
+ * has spent the last quarter basing still gets full credit for the advance before
+ * it. A stock younger than a year is scored on the quarters it has, with the same
+ * relative weights.
  */
 export function rsRaw(c: ArrayLike<number>, i: number): number {
   if (i < 63) return NaN;
-  const roc = (n: number) => c[i] / c[Math.max(0, i - n)] - 1;
-  return 0.4 * roc(63) + 0.2 * roc(126) + 0.2 * roc(189) + 0.2 * roc(252);
+  const w = [0.4, 0.2, 0.2, 0.2];
+  let s = 0;
+  let ws = 0;
+  for (let q = 0; q < 4; q++) {
+    const a = i - 63 * (q + 1);
+    if (a < 0) break;
+    s += w[q] * (c[i - 63 * q] / c[a] - 1);
+    ws += w[q];
+  }
+  return s / ws;
 }
 
 /**
