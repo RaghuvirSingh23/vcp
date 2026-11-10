@@ -5,11 +5,27 @@ import { analyze } from "../engine/vcp";
 import { ChartPane } from "./components/ChartPane";
 import { ScanList } from "./components/ScanList";
 import { Evidence } from "./components/Evidence";
+import { BacktestSummary, NO_FILTERS, Outcome, SignalList, applyFilters, type Filters } from "./components/Backtest";
 import { DARK, LIGHT, fmtDate, fmtPct, fmtPrice } from "./chart/theme";
 import type { ChartInput, ChartOptions } from "./chart/Chart";
-import { BENCH_NAME, MARKET_LABEL, fileKey, getBars, getBench, getScan, indexAt, isoDate, type ScanFile } from "./data";
+import {
+  BENCH_NAME,
+  MARKET_LABEL,
+  fileKey,
+  getBacktest,
+  getBars,
+  getBench,
+  getScan,
+  indexAt,
+  isoDate,
+  type BacktestFile,
+  type ScanFile,
+} from "./data";
+
+type View = "scan" | "backtest";
 
 interface Route {
+  view: View;
   market: Market;
   symbol: string | null;
   /** YYYYMMDD the chart is read on; null = the latest bar. */
@@ -18,16 +34,21 @@ interface Route {
 
 function parseHash(): Route {
   const p = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const view: View = p[0] === "backtest" ? "backtest" : "scan";
+  if (p[0] === "scan" || p[0] === "backtest") p.shift();
   const market: Market = p[0] === "in" ? "in" : "us";
-  return { market, symbol: p[1] ? decodeURIComponent(p[1]) : null, date: p[2] && /^\d{8}$/.test(p[2]) ? Number(p[2]) : null };
+  return { view, market, symbol: p[1] ? decodeURIComponent(p[1]) : null, date: p[2] && /^\d{8}$/.test(p[2]) ? Number(p[2]) : null };
 }
-const toHash = (r: Route) => `#/${r.market}${r.symbol ? "/" + encodeURIComponent(r.symbol) : ""}${r.symbol && r.date ? "/" + r.date : ""}`;
+const toHash = (r: Route) =>
+  `#/${r.view}/${r.market}${r.symbol ? "/" + encodeURIComponent(r.symbol) : ""}${r.symbol && r.date ? "/" + r.date : ""}`;
 
 const prefersDark = () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
 
 export function App() {
   const [route, setRouteState] = useState<Route>(parseHash);
   const [scan, setScan] = useState<ScanFile | null | undefined>(undefined);
+  const [bt, setBt] = useState<BacktestFile | null | undefined>(undefined);
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [bars, setBars] = useState<Bars | null | undefined>(undefined);
   const [bench, setBench] = useState<Bars | null>(null);
   const [showFuture, setShowFuture] = useState(true);
@@ -64,14 +85,28 @@ export function App() {
     };
   }, [route.market]);
 
-  // Default selection: the best row of the scan.
+  // The backtest file is large; load it only when its view is opened.
   useEffect(() => {
-    if (!route.symbol && scan?.rows.length) setRoute({ ...route, symbol: scan.rows[0].symbol });
+    if (route.view !== "backtest") return;
+    let live = true;
+    setBt(undefined);
+    getBacktest(route.market).then((b) => live && setBt(b));
+    return () => {
+      live = false;
+    };
+  }, [route.view, route.market]);
+
+  // Scanner: start on the best row of the scan.
+  useEffect(() => {
+    if (route.view === "scan" && !route.symbol && scan?.rows.length) setRoute({ ...route, symbol: scan.rows[0].symbol });
   }, [scan, route, setRoute]);
 
   // Bars for the selected symbol.
   useEffect(() => {
-    if (!route.symbol) return;
+    if (!route.symbol) {
+      setBars(undefined);
+      return;
+    }
     let live = true;
     setBars(undefined);
     getBars(route.market, fileKey(route.symbol)).then((b) => live && setBars(b));
@@ -79,6 +114,12 @@ export function App() {
       live = false;
     };
   }, [route.market, route.symbol]);
+
+  const signals = useMemo(() => (bt ? applyFilters(bt, filters) : []), [bt, filters]);
+  const signal = useMemo(
+    () => (route.view === "backtest" && bt && route.symbol ? (bt.signals.find((s) => s.symbol === route.symbol && s.setupDate === route.date) ?? null) : null),
+    [route, bt],
+  );
 
   const ind = useMemo(() => (bars ? indicators(bars, bench ?? undefined) : null), [bars, bench]);
   const asOf = useMemo(() => {
@@ -108,50 +149,67 @@ export function App() {
     return () => window.removeEventListener("keydown", on);
   }, [step]);
 
-  const options: ChartOptions = useMemo(
-    () => ({ log, candles, swings, theme: dark ? DARK : LIGHT }),
-    [log, candles, swings, dark],
-  );
-  const input: ChartInput | null = useMemo(
-    () =>
-      bars && ind && asOf >= 0
+  const options: ChartOptions = useMemo(() => ({ log, candles, swings, theme: dark ? DARK : LIGHT }), [log, candles, swings, dark]);
+  const input: ChartInput | null = useMemo(() => {
+    if (!bars || !ind || asOf < 0) return null;
+    // On a backtest signal, mark the trade exactly as it was scored.
+    const trade =
+      signal && bars.d[asOf] === signal.setupDate
         ? {
-            bars,
-            ind,
-            analysis,
-            asOf,
-            showFuture,
-            benchName: bench ? (BENCH_NAME[bench.symbol] ?? bench.symbol) : undefined,
+            entryIdx: indexAt(bars, signal.date),
+            entry: signal.entry,
+            stop: signal.stop,
+            exitIdx: signal.reason === "open" ? undefined : indexAt(bars, signal.exitDate),
+            exit: signal.reason === "open" ? undefined : signal.exit,
+            label: `${signal.reason === "stop" ? "stopped" : "sold"} ${fmtPrice(signal.exit)} · ${signal.r >= 0 ? "+" : "−"}${Math.abs(signal.r).toFixed(1)}R`,
           }
-        : null,
-    [bars, ind, analysis, asOf, showFuture, bench],
-  );
+        : undefined;
+    return {
+      bars,
+      ind,
+      analysis,
+      asOf,
+      showFuture,
+      trade,
+      benchName: bench ? (BENCH_NAME[bench.symbol] ?? bench.symbol) : undefined,
+    };
+  }, [bars, ind, analysis, asOf, showFuture, bench, signal]);
 
   const row = scan?.rows.find((r) => r.symbol === route.symbol);
   const chg = bars && asOf > 0 ? bars.c[asOf] / bars.c[asOf - 1] - 1 : 0;
   const atLatest = bars ? asOf === bars.d.length - 1 : true;
+  const showSummary = route.view === "backtest" && !route.symbol;
 
   return (
     <div className="app">
       <header className="top">
         <div className="brand">VCP</div>
+        <div className="seg" role="tablist" aria-label="View">
+          {(["scan", "backtest"] as View[]).map((v) => (
+            <button key={v} role="tab" aria-selected={route.view === v} onClick={() => setRoute({ view: v, market: route.market, symbol: null, date: null })}>
+              {v === "scan" ? "Scanner" : "Backtest"}
+            </button>
+          ))}
+        </div>
         <div className="seg" role="tablist" aria-label="Market">
           {(["us", "in"] as Market[]).map((m) => (
-            <button key={m} role="tab" aria-selected={route.market === m} onClick={() => setRoute({ market: m, symbol: null, date: null })}>
+            <button key={m} role="tab" aria-selected={route.market === m} onClick={() => setRoute({ view: route.view, market: m, symbol: null, date: null })}>
               {MARKET_LABEL[m]}
             </button>
           ))}
         </div>
         <div className="top-meta">
-          {scan ? (
-            <>
-              Scan of {fmtDate(scan.date)} · {scan.rows.length.toLocaleString()} stocks
-            </>
-          ) : scan === null ? (
-            "No scan yet"
-          ) : (
-            ""
-          )}
+          {route.view === "scan"
+            ? scan
+              ? `Scan of ${fmtDate(scan.date)} · ${scan.rows.length.toLocaleString()} stocks`
+              : scan === null
+                ? "No scan yet"
+                : ""
+            : bt
+              ? `${bt.signals.length.toLocaleString()} breakouts · ${fmtDate(bt.from)} to ${fmtDate(bt.to)}`
+              : bt === null
+                ? "No backtest yet"
+                : ""}
         </div>
         <div className="spacer" />
         <button className="ghost" onClick={() => setDark(!dark)} aria-label="Toggle theme">
@@ -160,16 +218,28 @@ export function App() {
       </header>
 
       <aside className="side">
-        <ScanList
-          scan={scan}
-          market={route.market}
-          selected={route.symbol}
-          onSelect={(symbol) => setRoute({ market: route.market, symbol, date: null })}
-        />
+        {route.view === "scan" ? (
+          <ScanList scan={scan} market={route.market} selected={route.symbol} onSelect={(symbol) => setRoute({ ...route, symbol, date: null })} />
+        ) : (
+          <SignalList
+            file={bt}
+            filters={filters}
+            onFilters={setFilters}
+            signals={signals}
+            selected={signal}
+            onSelect={(s) => setRoute({ ...route, symbol: s ? s.symbol : null, date: s ? s.setupDate : null })}
+          />
+        )}
       </aside>
 
       <main className="main">
-        {bars && ind ? (
+        {showSummary ? (
+          bt ? (
+            <BacktestSummary file={bt} signals={signals} />
+          ) : (
+            <div className="empty">{bt === null ? `No backtest for ${MARKET_LABEL[route.market]} yet. Run: npm run backtest -- --market ${route.market}` : "Loading…"}</div>
+          )
+        ) : bars && ind ? (
           <>
             <div className="chart-head">
               <div className="title">
@@ -231,7 +301,7 @@ export function App() {
                 Minor swings
               </label>
             </div>
-            <ChartPane input={input} options={options} fitKey={`${route.market}/${route.symbol}/${atLatest ? "" : "replay"}`} />
+            <ChartPane input={input} options={options} fitKey={`${route.view}/${route.market}/${route.symbol}/${signal ? signal.date : atLatest ? "" : "replay"}`} />
           </>
         ) : (
           <div className="empty">
@@ -244,7 +314,24 @@ export function App() {
         )}
       </main>
 
-      <aside className="evidence">{bars && asOf >= 0 && <Evidence bars={bars} analysis={analysis} asOf={asOf} />}</aside>
+      <aside className="evidence">
+        {!showSummary && bars && asOf >= 0 && (
+          <>
+            {signal && bars.d[asOf] === signal.setupDate && <Outcome s={signal} />}
+            <Evidence bars={bars} analysis={analysis} asOf={asOf} />
+          </>
+        )}
+        {showSummary && bt && (
+          <div className="ev">
+            <div className="kicker">How to read this</div>
+            <p className="why">
+              Pick a signal on the left to see the chart exactly as the detector saw it the day before the breakout, with the entry, stop and exit drawn on what
+              followed.
+            </p>
+            <p className="why">Filters apply to every figure on this page. Quality, contraction count and market trend were all known before the breakout. Breakout volume was not.</p>
+          </div>
+        )}
+      </aside>
     </div>
   );
 }

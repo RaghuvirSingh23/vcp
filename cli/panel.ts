@@ -71,7 +71,7 @@ for (const market of ["us", "in"] as Market[]) {
     items.push({ market, symbol: b.symbol, date: b.d[t], kind, footprint: r.footprint, failed: r.failed });
   }
 
-  if (market === "us") {
+  if (market === "us" && a.refs !== "false") {
     // Setups documented in the literature or widely recognised, as positive controls.
     for (const [symbol, date] of [
       ["MELI", 20071207],
@@ -96,7 +96,7 @@ items.forEach((it, i) => {
   const id = "c" + String(i + 1).padStart(3, "0");
   const path = join(dir, id + ".png");
   try {
-    render({ market: it.market, symbol: it.symbol, date: it.date, plain: true, bars: 250, out: path, width: 1200, height: 780, scale: 1.5 });
+    render({ market: it.market, symbol: it.symbol, date: it.date, plain: true, bars: Number(a.bars ?? 340), out: path, width: 1200, height: 780, scale: 1.5 });
     key.push({ ...it, id, path });
   } catch (e) {
     console.log(`skip ${it.symbol}: ${(e as Error).message}`);

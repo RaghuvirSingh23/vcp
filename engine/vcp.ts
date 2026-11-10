@@ -7,9 +7,11 @@
  * How a base is read
  * ------------------
  * 1. Left-side high. Candidates are swing highs in the last 65 weeks that no later bar
- *    has exceeded by more than the failed-breakout tolerance. The earliest candidate
- *    that yields a structurally sound base wins, so the reading is the whole
- *    consolidation, not just its right-hand end.
+ *    has exceeded by more than the failed-breakout tolerance. The base starts at the
+ *    earliest one that can be a base at all: preceded by an advance, not too long, not
+ *    too deep. The contraction rules are then applied to that whole consolidation. A
+ *    later high is never substituted because the full base failed them: months of
+ *    equal swings do not become a VCP by ignoring everything but the last one.
  * 2. First contraction: left-side high down to the lowest low of the base. A base whose
  *    body holds more than one swing (a double bottom, a shakeout under an earlier low)
  *    is still one first contraction: what matters is what the stock does after it.
@@ -17,7 +19,8 @@
  *    the previous contraction's low. This is the hierarchy a chart reader applies by
  *    eye: the dominant pullback first, then the dominant pullback of what is left.
  *    Pullbacks on the way back up, smaller than the contraction that follows them,
- *    are part of the recovery and are not counted.
+ *    are part of the recovery and are not counted. Nor is a pullback that starts in
+ *    the lower half of the base: that is the low being retested, not a contraction.
  * 4. The recursion stops when the largest remaining pullback is no bigger than the
  *    local bar noise. What is left is the pivot area.
  *
@@ -136,6 +139,9 @@ export function trendChecks(B: Bars, I: Ind, t: number, P: Params = DEFAULTS): {
   const m150 = I.sma150[t];
   const m200 = I.sma200[t];
   const m200Prev = t >= 21 ? I.sma200[t - 21] : NaN;
+  const longBars = P.trendMonths * 21;
+  const m200Long = t >= longBars ? I.sma200[t - longBars] : NaN;
+  const m50Prev = t >= 10 ? I.sma50[t - 10] : NaN;
   const hi = I.hi252[t];
   const lo = I.lo252[t];
   const rs = I.rs[t];
@@ -167,10 +173,10 @@ export function trendChecks(B: Bars, I: Ind, t: number, P: Params = DEFAULTS): {
     ),
     mk(
       "tt3",
-      "200-day MA rising for a month",
-      has(m200, m200Prev) ? m200 > m200Prev : null,
-      has(m200, m200Prev) ? pc(m200 / m200Prev - 1, 2) + " in 21 bars" : "n/a",
-      "rising",
+      `200-day MA rising, and above ${P.trendMonths} months ago`,
+      has(m200, m200Prev) ? m200 > m200Prev && (has(m200Long) ? m200 > m200Long : true) : null,
+      has(m200, m200Prev) ? pc(m200 / m200Prev - 1, 1) + " in a month" + (has(m200Long) ? ", " + pc(m200 / m200Long - 1, 0) + ` in ${P.trendMonths}` : "") : "n/a",
+      "rising over both",
     ),
     mk(
       "tt4",
@@ -180,6 +186,13 @@ export function trendChecks(B: Bars, I: Ind, t: number, P: Params = DEFAULTS): {
       "above both",
     ),
     mk("tt5", "Price above 50-day MA", has(m50) ? c > m50 : null, has(m50) ? `${num(c)} vs ${num(m50)}` : "n/a", "above"),
+    mk(
+      "tt5b",
+      "50-day MA not falling",
+      has(m50, m50Prev) ? m50 >= m50Prev * (1 - P.ma50Slack) : null,
+      has(m50, m50Prev) ? pc(m50 / m50Prev - 1, 1) + " in 10 sessions" : "n/a",
+      "flat or rising",
+    ),
     mk("tt6", "Above 52-week low", c / lo - 1 >= P.aboveLowMin, pc(c / lo - 1, 0), `≥ ${pc(P.aboveLowMin, 0)}`),
     mk("tt7", "Below 52-week high", 1 - c / hi <= P.belowHighMax, pc(1 - c / hi, 0), `≤ ${pc(P.belowHighMax, 0)}`),
     mk("tt8", "RS rating", has(rs) ? rs >= P.rsMin : null, has(rs) ? String(Math.round(rs)) : "n/a", `≥ ${P.rsMin}`),
@@ -200,6 +213,8 @@ interface Reading {
   priorAdvance: number;
   structural: Check[];
   fails: number;
+  /** Can be a base at all: follows an advance, and is neither too long nor too deep. */
+  isBase: boolean;
 }
 
 /** Swing highs that could be the left-side high of a base still in force at t, earliest first. */
@@ -248,6 +263,7 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
       volRatio: NaN,
     });
   push(s, l1);
+  const mid = (h[s] + l[l1]) / 2;
   let k = l1;
   for (;;) {
     // A bar that makes the low and closes in its upper half reversed intraday, so its own
@@ -256,7 +272,9 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     if (a >= t) break;
     const md = maxDrawdown(h, l, a, t);
     if (!md || md.depth < noiseAt(I, k + 1, t, P)) break;
-    push(md.p, md.q);
+    // A pullback from the lower half of the base is the low being retested (the second
+    // leg of a double bottom), part of the base forming rather than a contraction.
+    if (h[md.p] >= mid) push(md.p, md.q);
     k = md.q;
   }
   // First bar after a contraction's low that trades above its high.
@@ -308,7 +326,7 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
   // How far under the base's high the pivot sits, against the room the base allows.
   const baseHigh = Math.max(...cons.map((x) => x.high));
   const pivotGap = (baseHigh - last.high) / baseHigh;
-  const gapAllowed = Math.max(d1 / 3, P.pivotGapMin);
+  const gapAllowed = Math.max(d1 * P.pivotGapShare, P.pivotGapMin);
 
   const bars = (bo >= 0 ? bo : t) - s;
   const finalBars = endF - last.hi;
@@ -321,12 +339,16 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     pass: ok,
     required: true,
   });
-  // Each step must contract, unless both sides of the step are already pivot-tight.
+  // Each step must contract. How clearly depends on how deep the swings still are:
+  // from `stepDeep` up, to no more than `maxStepRatio` of the one before; easing
+  // linearly to "merely not larger" once the earlier one is within pivot tightness.
+  const allowedStep = (prev: number) => {
+    const w = (P.stepDeep - prev) / (P.stepDeep - P.maxFinalDepth);
+    return P.maxStepRatio + (1 - P.maxStepRatio) * Math.min(1, Math.max(0, w));
+  };
   let stepsOk = true;
   for (let i = 1; i < K; i++) {
-    const prev = cons[i - 1].depth;
-    const cur = cons[i].depth;
-    if (cur > prev || (cur > P.maxStepRatio * prev && prev > P.maxFinalDepth)) stepsOk = false;
+    if (cons[i].depth > cons[i - 1].depth * allowedStep(cons[i - 1].depth)) stepsOk = false;
   }
   const structural: Check[] = [
     mk(
@@ -353,7 +375,7 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
       "Each contraction smaller than the last",
       stepsOk,
       cons.map((x) => pc(x.depth, 0)).join(" → "),
-      `≤ ${num(P.maxStepRatio)}× each step`,
+      "each clearly smaller",
     ),
     mk(
       "c_ratio",
@@ -389,7 +411,11 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     ),
   ];
   const fails = structural.reduce((n, x) => n + (x.pass === false ? 1 : 0), 0);
-  return { s, lowIdx: l1, depth: d1, cons, bo, endF, priorLowIdx, priorLow, priorAdvance, structural, fails };
+  // A marginal new high followed by a deeper fall than the base had seen begins a new
+  // base at that high; the earlier, shallower consolidation is behind it.
+  const superseded = cons.some((x, i) => i > 0 && x.depth > cons[0].depth);
+  const isBase = !superseded && bars <= P.maxBaseBars && d1 <= P.maxBaseDepth && fromBelow && priorAdvance >= P.minPriorAdvance;
+  return { s, lowIdx: l1, depth: d1, cons, bo, endF, priorLowIdx, priorLow, priorAdvance, structural, fails, isBase };
 }
 
 export interface AnalyzeOptions {
@@ -406,12 +432,17 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
   const { checks: trend, young } = trendChecks(B, I, t, P);
   if (opts.trendGate && trend.some((x) => x.pass === false)) return null;
 
+  // The base is the earliest candidate that can be one. If none can, show the earliest
+  // reading so the chart still explains itself.
   let best: Reading | null = null;
   for (const s of candidates(B, t, P)) {
     const r = read(B, I, s, t, P);
     if (!r) continue;
-    if (!best || r.fails < best.fails) best = r;
-    if (r.fails === 0) break;
+    if (r.isBase) {
+      best = r;
+      break;
+    }
+    if (!best) best = r;
   }
   if (!best) return null;
 
@@ -466,7 +497,7 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
       value: Number.isFinite(rangeContraction) ? num(rangeContraction) + "×" : "n/a",
       want: `≤ ${num(P.maxRangeRatio)}×`,
       pass: Number.isFinite(rangeContraction) ? rangeContraction <= P.maxRangeRatio : null,
-      required: true,
+      required: false,
     },
     {
       id: "v_pin",

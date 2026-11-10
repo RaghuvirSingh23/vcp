@@ -20,6 +20,7 @@ export const FAIL_LABEL: Record<string, string> = {
   tt3: "200-day not rising",
   tt4: "50-day not on top",
   tt5: "below 50-day",
+  tt5b: "50-day falling",
   tt6: "too near 52w low",
   tt7: "too far off high",
   tt8: "RS under 70",

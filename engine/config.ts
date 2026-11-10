@@ -20,21 +20,32 @@ export interface Params {
   priorAdvanceLookback: number;
   /** The stop sits under the final contraction's low and risk is capped near 10%, so the pivot cannot be wider. */
   maxFinalDepth: number;
-  /** Volatility must at least halve from the deepest contraction to the last. */
+  /**
+   * The last contraction against the deepest. "About half" is Minervini's rule of thumb
+   * per step, so across a whole base anything short of roughly halving is not a
+   * contraction; 0.6 leaves room for the two-step bases chart readers accept (15% then 8%).
+   */
   maxOverallRatio: number;
   /**
-   * The pivot forms near the top of the base: within the upper third of its range
-   * (Minervini's handle area; the middle and lower thirds are the "cheat" areas), or,
-   * for a base too shallow for thirds to mean much, within this fraction of its high.
+   * The pivot forms near the top of the base: no further under its high than
+   * `pivotGapShare` of the base's depth (Minervini's handle area is the upper third,
+   * O'Neil's the upper half; readers accepted pivots down to about 0.37 and rejected
+   * 0.39 and lower only for other reasons), or, for a base too shallow for that to
+   * mean much, within `pivotGapMin` of the high.
    */
+  pivotGapShare: number;
   pivotGapMin: number;
   /**
    * TLSMW: each contraction "about half, plus or minus a reasonable amount" of the one
-   * before. A step that keeps more than this fraction of the previous depth is not a
-   * contraction. Steps between contractions that are both already inside the pivot
-   * tightness are exempt: two 7% dips side by side are one tight shelf, not looseness.
+   * before. A step from a deep contraction (`stepDeep` or more) that keeps more than
+   * `maxStepRatio` of its depth is not a contraction: that is what wide and loose means.
+   * The requirement eases as the swings get smaller and disappears once they are inside
+   * pivot tightness, where two similar dips side by side are one tight shelf. Blind
+   * chart readers accepted 24/11/9/4 and rejected 19/19/19/8/5; this is the rule that
+   * agrees with both.
    */
   maxStepRatio: number;
+  stepDeep: number;
   /**
    * A pivot is a pause, not a dip: this many sessions since its high. Four is the
    * shortest pivot in Minervini's own examples (MercadoLibre, December 2007:
@@ -43,7 +54,7 @@ export interface Params {
   minFinalBars: number;
   /**
    * Median daily true range in the pivot area over the median in the rest of the base.
-   * This is the volatility contraction itself, measured in bars rather than swings.
+   * Scored, not required: blind chart readers accepted clean bases this ratio rejected.
    */
   maxRangeRatio: number;
   /**
@@ -64,7 +75,14 @@ export interface Params {
   noiseFloor: number;
   /** Buy zone above the pivot; past it the stock is extended. */
   buyZone: number;
-  /** Trend Template (TLSMW ch. 5). */
+  /**
+   * Trend Template (TLSMW ch. 5). Two readings of its spirit are made explicit: the
+   * 200-day average must be above its level of `trendMonths` months ago (the book asks
+   * for one month and prefers four to five), and the 50-day must not be falling by more
+   * than `ma50Slack` over ten sessions, because a base is not complete while it is.
+   */
+  trendMonths: number;
+  ma50Slack: number;
   rsMin: number;
   aboveLowMin: number;
   belowHighMax: number;
@@ -85,9 +103,11 @@ export const DEFAULTS: Params = {
   minPriorAdvance: 0.3,
   priorAdvanceLookback: 252,
   maxFinalDepth: 0.1,
-  maxOverallRatio: 0.5,
+  maxOverallRatio: 0.6,
+  pivotGapShare: 0.4,
   pivotGapMin: 0.07,
   maxStepRatio: 0.75,
+  stepDeep: 0.2,
   minFinalBars: 4,
   maxRangeRatio: 0.85,
   pinRange: 0.005,
@@ -95,6 +115,8 @@ export const DEFAULTS: Params = {
   noiseMult: 1.25,
   noiseFloor: 0.02,
   buyZone: 0.05,
+  trendMonths: 5,
+  ma50Slack: 0.01,
   rsMin: 70,
   aboveLowMin: 0.3,
   belowHighMax: 0.25,
