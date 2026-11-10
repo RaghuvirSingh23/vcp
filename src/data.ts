@@ -1,4 +1,6 @@
 import type { Bars, Market } from "../engine/types";
+import type { Signal } from "../engine/backtest";
+import type { Params } from "../engine/config";
 
 export interface ScanRow {
   symbol: string;
@@ -69,3 +71,17 @@ export function indexAt(b: Bars, date: number): number {
 
 export const isoDate = (d: number) =>
   `${Math.floor(d / 10000)}-${String(Math.floor(d / 100) % 100).padStart(2, "0")}-${String(d % 100).padStart(2, "0")}`;
+
+
+export interface BacktestFile {
+  market: Market;
+  generatedAt: string;
+  from: number;
+  to: number;
+  symbols: number;
+  bars: number;
+  benchmark: string | null;
+  params: Params;
+  signals: Signal[];
+}
+export const getBacktest = (m: Market) => get<BacktestFile>(`/data/backtest/${m}.json`);

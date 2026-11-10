@@ -10,7 +10,9 @@
  *    has exceeded by more than the failed-breakout tolerance. The earliest candidate
  *    that yields a structurally sound base wins, so the reading is the whole
  *    consolidation, not just its right-hand end.
- * 2. First contraction: left-side high down to the lowest low of the base.
+ * 2. First contraction: left-side high down to the lowest low of the base. A base whose
+ *    body holds more than one swing (a double bottom, a shakeout under an earlier low)
+ *    is still one first contraction: what matters is what the stock does after it.
  * 3. Every later contraction is the largest high-to-low pullback in what remains after
  *    the previous contraction's low. This is the hierarchy a chart reader applies by
  *    eye: the dominant pullback first, then the dominant pullback of what is left.
@@ -187,6 +189,9 @@ export function trendChecks(B: Bars, I: Ind, t: number, P: Params = DEFAULTS): {
 
 interface Reading {
   s: number;
+  /** Lowest low of the base and the fall to it from the left-side high. */
+  lowIdx: number;
+  depth: number;
   cons: Contraction[];
   bo: number;
   endF: number;
@@ -298,7 +303,12 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     }
   }
   const priorAdvance = priorLowIdx >= 0 ? h[s] / priorLow - 1 : 0;
-  const fromBelow = priorLowIdx >= 0 && priorLow < last.low && priorLow < cons[0].low;
+  const fromBelow = priorLowIdx >= 0 && priorLow < l[l1];
+  const deepest = Math.max(...cons.map((x) => x.depth));
+  // How far under the base's high the pivot sits, against the room the base allows.
+  const baseHigh = Math.max(...cons.map((x) => x.high));
+  const pivotGap = (baseHigh - last.high) / baseHigh;
+  const gapAllowed = Math.max(d1 / 3, P.pivotGapMin);
 
   const bars = (bo >= 0 ? bo : t) - s;
   const finalBars = endF - last.hi;
@@ -348,10 +358,18 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     mk(
       "c_ratio",
       "contraction",
-      "Final vs first contraction",
-      K >= 2 && last.depth <= P.maxOverallRatio * cons[0].depth,
-      K >= 2 ? num(last.depth / cons[0].depth) + "×" : "n/a",
+      "Final vs deepest contraction",
+      K >= 2 && last.depth <= P.maxOverallRatio * deepest,
+      K >= 2 ? num(last.depth / deepest) + "×" : "n/a",
       `≤ ${num(P.maxOverallRatio)}×`,
+    ),
+    mk(
+      "c_pos",
+      "contraction",
+      "Pivot near the top of the base",
+      pivotGap <= gapAllowed,
+      pc(pivotGap) + " under the base high",
+      `≤ ${pc(gapAllowed)}`,
     ),
     mk(
       "c_tight",
@@ -371,7 +389,7 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     ),
   ];
   const fails = structural.reduce((n, x) => n + (x.pass === false ? 1 : 0), 0);
-  return { s, cons, bo, endF, priorLowIdx, priorLow, priorAdvance, structural, fails };
+  return { s, lowIdx: l1, depth: d1, cons, bo, endF, priorLowIdx, priorLow, priorAdvance, structural, fails };
 }
 
 export interface AnalyzeOptions {
@@ -417,8 +435,9 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
   const rangeContraction =
     hasWindow && last.hi > best.s ? median(I.tr, wA, endF) / median(I.tr, best.s + 1, last.hi) : NaN;
   const pivotRange = hasWindow ? median(I.tr, wA, endF) : NaN;
-  const span = first.high - first.low;
-  const pivotPos = span > 0 ? (pivot - first.low) / span : 1;
+  const baseLow = B.l[best.lowIdx];
+  const span = first.high - baseLow;
+  const pivotPos = span > 0 ? (pivot - baseLow) / span : 1;
   const kind: Kind = pivotPos >= 2 / 3 ? "classic" : pivotPos >= 1 / 3 ? "cheat" : "low-cheat";
 
   const volume: Check[] = [
@@ -464,9 +483,9 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
       id: "q_depth",
       group: "base",
       label: "Base depth in the constructive range",
-      value: pc(first.depth),
+      value: pc(best.depth),
       want: `≤ ${pc(P.idealBaseDepth, 0)}`,
-      pass: first.depth <= P.idealBaseDepth,
+      pass: best.depth <= P.idealBaseDepth,
       required: false,
     },
   ];
@@ -488,9 +507,7 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
   const sRange = Number.isFinite(rangeContraction) ? clamp01((1 - rangeContraction) / 0.5) : 0;
   const sRs = Number.isFinite(rs) ? clamp01((rs - 70) / 29) : 0;
   const sDepth =
-    first.depth <= P.idealBaseDepth
-      ? 1
-      : clamp01((P.maxBaseDepth - first.depth) / (P.maxBaseDepth - P.idealBaseDepth));
+    best.depth <= P.idealBaseDepth ? 1 : clamp01((P.maxBaseDepth - best.depth) / (P.maxBaseDepth - P.idealBaseDepth));
   const sPos = clamp01((pivotPos - 1 / 3) / (2 / 3 - 1 / 3));
   const score = Math.round(
     25 * sTight + 20 * prog + 10 * sDry + 10 * sLow + 10 * sRange + 15 * sRs + 5 * sDepth + 5 * sPos,
@@ -505,7 +522,7 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
   const endRef = bo >= 0 ? bo : t;
   const bars = endRef - best.s;
   const weeks = Math.max(1, Math.round(bars / 5));
-  const footprint = `${weeks}W ${Math.round(first.depth * 100)}/${Math.round(last.depth * 100)} ${K}T`;
+  const footprint = `${weeks}W ${Math.round(best.depth * 100)}/${Math.round(last.depth * 100)} ${K}T`;
 
   return {
     t,
@@ -520,9 +537,9 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
     base: {
       start: best.s,
       high: first.high,
-      lowIdx: first.lo,
-      low: first.low,
-      depth: first.depth,
+      lowIdx: best.lowIdx,
+      low: baseLow,
+      depth: best.depth,
       bars,
       weeks,
       priorLowIdx: best.priorLowIdx,

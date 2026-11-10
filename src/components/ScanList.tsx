@@ -30,6 +30,7 @@ export const FAIL_LABEL: Record<string, string> = {
   c_step: "not shrinking",
   c_ratio: "not halved",
   c_tight: "pivot too wide",
+  c_pos: "pivot low in base",
   c_bars: "pivot too new",
   v_dry: "volume not dry",
   v_range: "bars not tight",

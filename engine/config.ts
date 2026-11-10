@@ -20,8 +20,14 @@ export interface Params {
   priorAdvanceLookback: number;
   /** The stop sits under the final contraction's low and risk is capped near 10%, so the pivot cannot be wider. */
   maxFinalDepth: number;
-  /** Volatility must at least halve from the first contraction to the last. */
+  /** Volatility must at least halve from the deepest contraction to the last. */
   maxOverallRatio: number;
+  /**
+   * The pivot forms near the top of the base: within the upper third of its range
+   * (Minervini's handle area; the middle and lower thirds are the "cheat" areas), or,
+   * for a base too shallow for thirds to mean much, within this fraction of its high.
+   */
+  pivotGapMin: number;
   /**
    * TLSMW: each contraction "about half, plus or minus a reasonable amount" of the one
    * before. A step that keeps more than this fraction of the previous depth is not a
@@ -80,6 +86,7 @@ export const DEFAULTS: Params = {
   priorAdvanceLookback: 252,
   maxFinalDepth: 0.1,
   maxOverallRatio: 0.5,
+  pivotGapMin: 0.07,
   maxStepRatio: 0.75,
   minFinalBars: 4,
   maxRangeRatio: 0.85,
