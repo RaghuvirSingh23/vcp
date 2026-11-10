@@ -449,7 +449,7 @@ export class ChartCore {
       g.stroke();
       g.setLineDash([]);
       const bandH = py - Y(A.pivot * 1.05);
-      if (bandH >= 15 && edge - X(A.pivotIdx) > 190) {
+      if (bandH >= 15 && edge - X(A.pivotIdx) > 190 && !(inp.showFuture && inp.asOf < last)) {
         this.font(g, 10, 500);
         g.textAlign = "right";
         g.textBaseline = "middle";
@@ -536,10 +536,11 @@ export class ChartCore {
     g.textAlign = "left";
     g.textBaseline = "middle";
     g.fillStyle = T.muted;
-    for (const p of ticks) g.fillText(fmtPrice(p), edge + 8, Y(p));
     const lastIdx = Math.min(i1, inp.asOf);
     const lc = B.c[lastIdx];
     tags.push({ y: Y(lc), text: fmtPrice(lc), bg: T.ink2, fg: T.surface });
+    // A scale label that would sit under a level tag is left out.
+    for (const p of ticks) if (!tags.some((t) => Math.abs(t.y - Y(p)) < 15)) g.fillText(fmtPrice(p), edge + 8, Y(p));
     this.drawTags(g, tags, edge);
 
     this.drawRs(g, i0, i1);

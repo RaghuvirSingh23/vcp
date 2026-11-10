@@ -17,7 +17,8 @@
     "why": "tsx --max-old-space-size=8192 cli/why.ts",
     "render": "tsx cli/render.ts",
     "panel": "tsx --max-old-space-size=8192 cli/panel.ts",
-    "panel-report": "tsx cli/panel-report.ts"
+    "panel-report": "tsx cli/panel-report.ts",
+    "fixtures": "tsx cli/fixtures.ts"
   },
   "dependencies": {
     "react": "^19.3.1",
