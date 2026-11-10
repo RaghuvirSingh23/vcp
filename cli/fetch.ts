@@ -28,7 +28,7 @@ async function run(market: Market, a: Record<string, string>) {
   // Benchmark first: the RS line and the market-regime column both need it.
   for (const sym of MARKETS[market].benchmark) {
     try {
-      const b = await fetchBars(sym, sym, market, sym, { since: "1995-01-01" });
+      const b = await fetchBars(sym, sym, market, sym, { since: "1995-01-01", keepUntraded: true });
       if (b.d.length > 500) {
         writeJson(benchPath(market), b);
         console.log(`${market}: benchmark ${sym}, ${b.d.length} bars to ${b.d[b.d.length - 1]}`);

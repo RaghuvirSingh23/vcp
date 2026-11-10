@@ -26,7 +26,23 @@ export function readJson<T>(path: string): T | null {
   if (!existsSync(path)) return null;
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
-export const loadBars = (m: Market, symbol: string) => readJson<Bars>(barsPath(m, symbol));
+/**
+ * Remove sessions with no volume. The vendor pads exchange holidays and halts with
+ * flat zero-volume rows; counted as sessions they fake a volume dry-up, a tight
+ * range and a longer pivot than the stock actually had.
+ */
+export function dropUntraded(b: Bars): Bars {
+  if (!b.v.some((x) => !(x > 0))) return b;
+  const keep: number[] = [];
+  for (let i = 0; i < b.v.length; i++) if (b.v[i] > 0) keep.push(i);
+  const pick = <T,>(x: T[]) => keep.map((i) => x[i]);
+  return { ...b, d: pick(b.d), o: pick(b.o), h: pick(b.h), l: pick(b.l), c: pick(b.c), v: pick(b.v), rs: b.rs && b.rs.length === b.v.length ? pick(b.rs) : undefined };
+}
+
+export function loadBars(m: Market, symbol: string): Bars | null {
+  const b = readJson<Bars>(barsPath(m, symbol));
+  return b ? dropUntraded(b) : null;
+}
 export const loadUniverse = (m: Market) => readJson<UniverseEntry[]>(universePath(m)) ?? [];
 
 /** Every symbol that has a bars file on disk, benchmark excluded. */
@@ -37,7 +53,7 @@ export function loadAllBars(m: Market): Bars[] {
   for (const f of readdirSync(dir)) {
     if (!f.endsWith(".json") || f.startsWith("_")) continue;
     const b = readJson<Bars>(join(dir, f));
-    if (b && b.d.length) out.push(b);
+    if (b && b.d.length) out.push(dropUntraded(b));
   }
   return out;
 }

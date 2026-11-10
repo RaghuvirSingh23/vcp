@@ -348,35 +348,10 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
   const priorAdvance = priorLowIdx >= 0 ? h[s] / priorLow - 1 : 0;
   const fromBelow = priorLowIdx >= 0 && priorLow < l[l1];
   const deepest = Math.max(...cons.map((x) => x.depth));
-  const ease = (deep: number, tight: number, at: number) =>
-    deep + (tight - deep) * Math.min(1, Math.max(0, (P.stepDeep - at) / (P.stepDeep - P.maxFinalDepth)));
-  const overallAllowed = ease(P.maxOverallRatio, P.maxOverallRatioTight, deepest);
-  // The significant pullback, if any, in the rally that led into the pivot high.
-  let lastTightest = true;
-  let priorDepth = NaN;
-  if (P.lastTightest && K >= 2) {
-    const from = cons[K - 2].lo;
-    const m = maxDrawdown(h, l, from, last.hi);
-    if (m && m.depth >= noiseAt(I, from + 1, last.hi, P)) {
-      priorDepth = m.depth;
-      lastTightest = last.depth <= m.depth;
-    }
-  }
   // How far under the base's high the pivot sits, against the room the base allows.
-  let baseHigh = Math.max(...cons.map((x) => x.high));
-  let spanDepth = d1;
-  if (P.posOnCloses) {
-    let hiC = -Infinity;
-    let loC = Infinity;
-    for (let i = s; i <= t; i++) {
-      if (c[i] > hiC) hiC = c[i];
-      if (c[i] < loC) loC = c[i];
-    }
-    baseHigh = hiC;
-    spanDepth = (hiC - loC) / hiC;
-  }
-  const pivotGap = Math.max(0, (baseHigh - last.high) / baseHigh);
-  const gapAllowed = Math.max(spanDepth * P.pivotGapShare, P.pivotGapMin);
+  const baseHigh = Math.max(...cons.map((x) => x.high));
+  const pivotGap = (baseHigh - last.high) / baseHigh;
+  const gapAllowed = Math.max(d1 * P.pivotGapShare, P.pivotGapMin);
 
   const bars = (bo >= 0 ? bo : t) - s;
   const finalBars = endF - last.hi;
@@ -438,17 +413,9 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
       "c_ratio",
       "contraction",
       "Final vs deepest contraction",
-      K >= 2 && last.depth <= overallAllowed * deepest,
+      K >= 2 && last.depth <= P.maxOverallRatio * deepest,
       K >= 2 ? num(last.depth / deepest) + "×" : "n/a",
-      `≤ ${num(overallAllowed)}×`,
-    ),
-    mk(
-      "c_last",
-      "contraction",
-      "Final contraction is the tightest recent one",
-      lastTightest,
-      Number.isFinite(priorDepth) ? `${pc(last.depth)} after ${pc(priorDepth)}` : pc(last.depth),
-      "no deeper than the pullback before it",
+      `≤ ${num(P.maxOverallRatio)}×`,
     ),
     mk(
       "c_pos",
@@ -531,7 +498,7 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
 
   // Volume through the pivot area, against the 50-day average the trader sees on the chart.
   const avg = I.vol50[endF];
-  const dryUp = hasWindow ? (P.dryUpMedian ? median(v, wA, endF) : mean(v, wA, endF)) / avg : NaN;
+  const dryUp = hasWindow ? mean(v, wA, endF) / avg : NaN;
   let minVol = Infinity;
   for (let i = wA; i <= endF; i++) if (v[i] < minVol) minVol = v[i];
   const lowDay = hasWindow ? minVol / avg : NaN;

@@ -48,17 +48,20 @@ const yes = items.filter((x) => x.score >= 0.83).length;
 const no = items.filter((x) => x.score <= 0.17).length;
 console.log(`panel: ${yes} clear yes, ${items.filter((x) => x.score >= 0.5).length} accepted, ${no} clear no\n`);
 
+// Each line is the configured rule set with one thing changed, to show what that rule is worth.
 const VARIANTS: [string, Partial<Params>][] = [
-  ["current", {}],
-  ["median dry-up", { dryUpMedian: true }],
-  ["median dry-up 0.9", { dryUpMedian: true, dryUpMax: 0.9 }],
-  ["median dry-up 0.8", { dryUpMedian: true, dryUpMax: 0.8 }],
-  ["ratio eases to 0.85", { maxOverallRatioTight: 0.85 }],
-  ["ratio eases to 0.75", { maxOverallRatioTight: 0.75 }],
-  ["position on closes", { posOnCloses: true }],
-  ["last tightest", { lastTightest: true }],
-  ["all four", { dryUpMedian: true, maxOverallRatioTight: 0.85, posOnCloses: true, lastTightest: true }],
-  ["all four, dry 0.9", { dryUpMedian: true, dryUpMax: 0.9, maxOverallRatioTight: 0.85, posOnCloses: true, lastTightest: true }],
+  ["as configured", {}],
+  ["no resistance rule", { resistance: false }],
+  ["no retest rule", { nestedRetest: false }],
+  ["pivot anywhere in upper half", { pivotGapShare: 0.5 }],
+  ["no minimum base depth", { minBaseDepth: 0 }],
+  ["no reach limit", { maxPivotDistance: Infinity }],
+  ["no recent-range limit", { maxRecentRange: Infinity }],
+  ["step ratio 0.75", { maxStepRatio: 0.75 }],
+  ["noise multiple 1.25", { noiseMult: 1.25 }],
+  ["overall ratio 0.5", { maxOverallRatio: 0.5 }],
+  ["pivot age 5 sessions", { minFinalBars: 5 }],
+  ["dry-up under 0.9", { dryUpMax: 0.9 }],
 ];
 if (a.combo) {
   // --combo "pivotGapShare=0.35,pivotGapMin=0,nestedRetest=true"

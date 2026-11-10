@@ -75,6 +75,8 @@ function localDate(ts: number, gmtoffset: number): number {
 export interface FetchOptions {
   /** YYYY-MM-DD; default 2005-01-01. */
   since?: string;
+  /** Keep rows with zero volume. For indices, whose volume the vendor often reports as zero. */
+  keepUntraded?: boolean;
 }
 
 export async function fetchBars(
@@ -91,6 +93,7 @@ export async function fetchBars(
   const q = r.indicators?.quote?.[0] ?? {};
   const meta = r.meta ?? {};
   const off: number = meta.gmtoffset ?? 0;
+  const untraded = !opt.keepUntraded;
   const out: Bars = {
     symbol,
     market,
@@ -117,6 +120,8 @@ export async function fetchBars(
       dropped++;
       continue;
     }
+    // A row with no volume is a holiday or halt the vendor padded, not a session.
+    if (untraded && !(v > 0)) continue;
     if (!(o > 0)) o = c;
     // Vendor rows are occasionally inconsistent; the bar must contain its own open and close.
     h = Math.max(h, o, c);

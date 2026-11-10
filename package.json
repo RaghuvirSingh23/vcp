@@ -20,7 +20,8 @@
     "panel-report": "tsx cli/panel-report.ts",
     "fixtures": "tsx cli/fixtures.ts",
     "panel-eval": "tsx cli/panel-eval.ts",
-    "panel-agreement": "tsx cli/panel-agreement.ts"
+    "panel-agreement": "tsx cli/panel-agreement.ts",
+    "panel-grade": "tsx cli/panel-grade.ts"
   },
   "dependencies": {
     "react": "^19.3.1",
