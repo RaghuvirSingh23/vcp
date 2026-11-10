@@ -62,7 +62,21 @@ const VARIANTS: [string, Partial<Params>][] = [
   ["step 0.7", { maxStepRatio: 0.7 }],
   ["ratio 0.5", { maxOverallRatio: 0.5 }],
   ["bars 5", { minFinalBars: 5 }],
+  ["resistance", { resistance: true }],
+  ["reach 5%", { maxPivotDistance: 0.05 }],
+  ["tol 3%", { failedBreakoutTol: 0.03 }],
+  ["recent 1.3", { maxRecentRange: 1.3 }],
 ];
+const BASE: Partial<Params> = { pivotGapShare: 0.35, pivotGapMin: 0, nestedRetest: true, minBaseDepth: 0.075, maxStepRatio: 0.7, noiseMult: 1.4 };
+for (const [name, extra] of [
+  ["A: base combo", {}],
+  ["A + resistance", { resistance: true }],
+  ["A + reach 5%", { maxPivotDistance: 0.05 }],
+  ["A + res + reach", { resistance: true, maxPivotDistance: 0.05 }],
+  ["A + res + reach + rec1.3", { resistance: true, maxPivotDistance: 0.05, maxRecentRange: 1.3 }],
+  ["A + res + reach + tol3", { resistance: true, maxPivotDistance: 0.05, failedBreakoutTol: 0.03 }],
+  ["A + res + reach + bars5", { resistance: true, maxPivotDistance: 0.05, minFinalBars: 5 }],
+] as [string, Partial<Params>][]) VARIANTS.push([name, { ...BASE, ...extra }]);
 if (a.combo) {
   // --combo "pivotGapShare=0.35,pivotGapMin=0,nestedRetest=true"
   const o: Record<string, unknown> = {};
@@ -73,7 +87,7 @@ if (a.combo) {
   VARIANTS.push(["combo", o as Partial<Params>]);
 }
 
-console.log("variant".padEnd(20), "valid", " acc", " rej", "| clearYes→valid", "| clearNo→valid", "| agree%");
+console.log("variant".padEnd(26), "valid", " acc", " rej", "| clearYes→valid", "| clearNo→valid", "| agree%");
 for (const [name, over] of VARIANTS) {
   const P = { ...DEFAULTS, ...over };
   let valid = 0;
@@ -100,7 +114,7 @@ for (const [name, over] of VARIANTS) {
     if (v === it.score >= 0.5) agree++;
   }
   console.log(
-    name.padEnd(20),
+    name.padEnd(26),
     String(valid).padStart(5),
     String(acc).padStart(4),
     String(rej).padStart(4),

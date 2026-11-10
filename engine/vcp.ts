@@ -294,6 +294,15 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     cons.pop();
     bo = breakoutOf(cons[cons.length - 1]);
   }
+  // Keep the contractions that share the pivot's resistance (the first is the base itself).
+  if (P.resistance) {
+    for (let i = cons.length - 2; i >= 1; i--) {
+      let later = 0;
+      for (let j = i + 1; j < cons.length; j++) later = Math.max(later, cons[j].high);
+      if (later > cons[i].high * (1 + P.failedBreakoutTol)) cons.splice(i, 1);
+    }
+    cons.forEach((x, i) => (x.n = i + 1));
+  }
   const K = cons.length;
   const last = cons[K - 1];
   const endF = bo >= 0 ? bo - 1 : t;
@@ -410,6 +419,14 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
       last.depth <= P.maxFinalDepth,
       pc(last.depth),
       `≤ ${pc(P.maxFinalDepth, 0)}`,
+    ),
+    mk(
+      "c_reach",
+      "contraction",
+      "Within reach of the pivot",
+      bo >= 0 || last.high / c[t] - 1 <= P.maxPivotDistance,
+      bo >= 0 ? "through it" : pc(last.high / c[t] - 1) + " below",
+      Number.isFinite(P.maxPivotDistance) ? `≤ ${pc(P.maxPivotDistance, 0)}` : "any",
     ),
     mk(
       "c_bars",

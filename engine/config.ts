@@ -24,6 +24,14 @@ export interface Params {
    */
   nestedRetest: boolean;
   /**
+   * A VCP's contractions press against the same resistance: flat or falling highs. A
+   * pullback whose high price later cleared by more than the failed-breakout tolerance
+   * was a pause on the way back up, not one of the contractions under the pivot.
+   */
+  resistance: boolean;
+  /** An unbroken setup is actionable only while the close is this near the pivot. */
+  maxPivotDistance: number;
+  /**
    * Median true range of the last three sessions over the base's median. Above this
    * the right edge is still swinging: a dip that has bounced, not a pause.
    */
@@ -41,10 +49,10 @@ export interface Params {
   maxOverallRatio: number;
   /**
    * The pivot forms near the top of the base: no further under its high than
-   * `pivotGapShare` of the base's depth (Minervini's handle area is the upper third,
-   * O'Neil's the upper half; readers accepted pivots down to about 0.37 and rejected
-   * 0.39 and lower only for other reasons), or, for a base too shallow for that to
-   * mean much, within `pivotGapMin` of the high.
+   * `pivotGapShare` of the base's depth. 0.35 is Minervini's upper third, the handle
+   * area; below it are his "cheat" areas. `pivotGapMin` can widen that for shallow
+   * bases; blind readers treated a mid-range pivot in a shallow base as mid-range, so
+   * it is off.
    */
   pivotGapShare: number;
   pivotGapMin: number;
@@ -80,9 +88,9 @@ export interface Params {
    * A pullback counts as a contraction only if it is deeper than `noiseMult` times the
    * median daily true range of the stretch it sits in, and never less than `noiseFloor`.
    * Scaling by the local bar size is what lets a 3% pivot count in a quiet stock while a
-   * 3% wiggle in a wild one does not. 1.25 is the largest multiple that still counts
-   * the 6.6% third contraction Minervini marks on MercadoLibre in December 2007, when
-   * the stock's median daily range was 4.6%.
+   * 3% wiggle in a wild one does not. 1.4 still counts the 6.6% third contraction
+   * Minervini marks on MercadoLibre in December 2007 (median daily range 4.6%, so 1.43
+   * of it), and stops counting dips that blind readers saw as bar noise.
    */
   noiseMult: number;
   noiseFloor: number;
@@ -113,22 +121,24 @@ export const DEFAULTS: Params = {
   failedBreakoutTol: 0.05,
   idealBaseDepth: 0.35,
   maxBaseDepth: 0.5,
-  minBaseDepth: 0,
-  nestedRetest: false,
-  maxRecentRange: Infinity,
+  minBaseDepth: 0.075,
+  nestedRetest: true,
+  resistance: true,
+  maxPivotDistance: 0.07,
+  maxRecentRange: 1.3,
   minPriorAdvance: 0.3,
   priorAdvanceLookback: 252,
   maxFinalDepth: 0.1,
   maxOverallRatio: 0.6,
-  pivotGapShare: 0.4,
-  pivotGapMin: 0.07,
-  maxStepRatio: 0.75,
+  pivotGapShare: 0.35,
+  pivotGapMin: 0,
+  maxStepRatio: 0.7,
   stepDeep: 0.2,
   minFinalBars: 4,
   maxRangeRatio: 0.85,
   pinRange: 0.005,
   pinRatio: 0.2,
-  noiseMult: 1.25,
+  noiseMult: 1.4,
   noiseFloor: 0.02,
   buyZone: 0.05,
   trendMonths: 5,
