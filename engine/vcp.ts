@@ -270,7 +270,8 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     const con = cons[i];
     con.end = i < K - 1 ? cons[i + 1].hi : Math.max(endF, con.lo);
     con.volRatio = mean(v, con.hi, con.end) / I.vol50[con.end];
-    const ru = maxRunup(h, l, con.hi, con.lo);
+    // The low must come after the high's own bar: that bar's low may predate its high.
+    const ru = maxRunup(h, l, con.hi + 1, con.lo);
     if (ru && ru.gain >= noiseAt(I, con.hi + 1, con.lo, P)) {
       const drop = con.high - l[ru.q];
       const rally = h[ru.p] - l[ru.q];
@@ -305,8 +306,13 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     pass: ok,
     required: true,
   });
-  let ordered = true;
-  for (let i = 1; i < K; i++) if (cons[i].depth > cons[i - 1].depth) ordered = false;
+  // Each step must contract, unless both sides of the step are already pivot-tight.
+  let stepsOk = true;
+  for (let i = 1; i < K; i++) {
+    const prev = cons[i - 1].depth;
+    const cur = cons[i].depth;
+    if (cur > prev || (cur > P.maxStepRatio * prev && prev > P.maxFinalDepth)) stepsOk = false;
+  }
   const structural: Check[] = [
     mk(
       "b_len",
@@ -327,12 +333,12 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     ),
     mk("c_count", "contraction", "Contractions", K >= 2, String(K), "≥ 2"),
     mk(
-      "c_order",
+      "c_step",
       "contraction",
       "Each contraction smaller than the last",
-      ordered,
+      stepsOk,
       cons.map((x) => pc(x.depth, 0)).join(" → "),
-      "shrinking",
+      `≤ ${num(P.maxStepRatio)}× each step`,
     ),
     mk(
       "c_ratio",
@@ -405,6 +411,7 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
   // Daily ranges at the pivot against daily ranges in the rest of the base.
   const rangeContraction =
     hasWindow && last.hi > best.s ? median(I.tr, wA, endF) / median(I.tr, best.s + 1, last.hi) : NaN;
+  const pivotRange = hasWindow ? median(I.tr, wA, endF) : NaN;
   const span = first.high - first.low;
   const pivotPos = span > 0 ? (pivot - first.low) / span : 1;
   const kind: Kind = pivotPos >= 2 / 3 ? "classic" : pivotPos >= 1 / 3 ? "cheat" : "low-cheat";
@@ -433,9 +440,18 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
       group: "volume",
       label: "Daily range at the pivot vs rest of base",
       value: Number.isFinite(rangeContraction) ? num(rangeContraction) + "×" : "n/a",
-      want: "≤ 0.70×",
-      pass: Number.isFinite(rangeContraction) ? rangeContraction <= 0.7 : null,
-      required: false,
+      want: `≤ ${num(P.maxRangeRatio)}×`,
+      pass: Number.isFinite(rangeContraction) ? rangeContraction <= P.maxRangeRatio : null,
+      required: true,
+    },
+    {
+      id: "v_pin",
+      group: "volume",
+      label: "Price is trading freely",
+      value: Number.isFinite(pivotRange) ? pc(pivotRange, 2) + " a day" : "n/a",
+      want: `> ${pc(P.pinRange, 1)} a day`,
+      pass: Number.isFinite(pivotRange) ? !(pivotRange < P.pinRange || rangeContraction < P.pinRatio) : null,
+      required: true,
     },
   ];
   const quality: Check[] = [
@@ -478,7 +494,8 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
   const close = c[t];
   let state: State;
   if (bo >= 0) state = close > pivot * (1 + P.buyZone) ? "extended" : "breakout";
-  else state = pivot / close - 1 <= P.buyZone ? "ready" : "forming";
+  // Ready = back in the upper half of the final contraction; below that it is still pulling back.
+  else state = close >= (pivot + stop) / 2 ? "ready" : "forming";
 
   const endRef = bo >= 0 ? bo : t;
   const bars = endRef - best.s;

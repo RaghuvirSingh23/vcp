@@ -15,12 +15,8 @@ export function loadMarket(market: Market): Loaded {
   const all = loadAllBars(market);
   const bench = readJson<Bars>(benchPath(market));
   rateUniverse(all);
-  const cache = new Map<string, Ind>();
-  const ind = (b: Bars) => {
-    let i = cache.get(b.symbol);
-    if (!i) cache.set(b.symbol, (i = indicators(b, bench ?? undefined)));
-    return i;
-  };
+  // Not cached: a full market of indicator arrays would not fit comfortably in memory.
+  const ind = (b: Bars) => indicators(b, bench ?? undefined);
   return { market, all, bench, ind };
 }
 

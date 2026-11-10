@@ -19,4 +19,13 @@ if (import.meta.env.DEV) {
     await fetch("/__shot?name=" + encodeURIComponent(name), { method: "POST", body: blob });
     return `${c.width}x${c.height}`;
   };
+  // Open each "market/symbol[/date]" in turn and save its chart.
+  (window as any).__tour = async (items: string[]) => {
+    for (const it of items) {
+      location.hash = "#/" + it;
+      await new Promise((r) => setTimeout(r, 900));
+      await (window as any).__shot(it.replaceAll("/", "-"));
+    }
+    return items.length;
+  };
 }

@@ -48,6 +48,14 @@ interface Rect {
 }
 
 type Seg = [text: string, color: string, weight?: number];
+interface Tag {
+  y: number;
+  text: string;
+  bg: string;
+  fg: string;
+  /** Stays on its level; other tags move out of its way. */
+  fixed?: boolean;
+}
 
 const AXIS_W = 66;
 const TIME_H = 24;
@@ -175,7 +183,7 @@ export class Chart {
     let left = inp.asOf - want;
     if (a) left = Math.min(left, a.base.start - 25);
     left = Math.max(0, left);
-    const rightIdx = Math.min(last, inp.asOf + (inp.showFuture ? 45 : 0));
+    const rightIdx = Math.min(last, inp.asOf + (inp.showFuture ? 30 : 0));
     // Leave room on the right for the pivot and stop labels.
     const margin = Math.max(6, Math.round((rightIdx - left) * 0.06));
     this.slot = Math.min(22, Math.max(1.2, this.price.w / (rightIdx - left + 1 + margin)));
@@ -419,7 +427,7 @@ export class Chart {
     g.globalAlpha = 1;
 
     // ── the reading, over the bars ──
-    const tags: { y: number; text: string; bg: string; fg: string }[] = [];
+    const tags: Tag[] = [];
     if (A) {
       const placed: Rect[] = [];
       const K = A.contractions.length;
@@ -437,7 +445,7 @@ export class Chart {
         g.lineTo(Math.max(x0 + 2, x1), y1);
         g.stroke();
         // The swing itself: high to low.
-        g.strokeStyle = T.ink2;
+        g.strokeStyle = T.muted;
         g.lineWidth = 1;
         g.beginPath();
         g.moveTo(X(c.hi), Y(c.high));
@@ -471,15 +479,35 @@ export class Chart {
         this.font(g, 10, 500);
         const tn = "T" + c.n;
         const wT = g.measureText(tn).width;
-        const r: Rect = { x: x0 - 1, y: y0 - 19, w: wT + 5 + wDepth + 4, h: 15 };
-        for (let guard = 0; guard < 6 && placed.some((q) => overlap(q, r)); guard++) r.y -= 16;
+        const lw = wT + 5 + wDepth + 4;
+        const free = (q: Rect) => !placed.some((o) => overlap(o, q));
+        let r: Rect = { x: x0 - 1, y: y0 - 19, w: lw, h: 15 };
+        if (!free(r)) {
+          const below: Rect = { x: x0 - 1, y: y1 + 4, w: lw, h: 15 };
+          if (free(below)) r = below;
+          else {
+            for (let guard = 0; guard < 8 && !free(r); guard++) r.y -= 16;
+            g.strokeStyle = T.axis;
+            g.lineWidth = 1;
+            g.beginPath();
+            g.moveTo(x0 + 0.5, y0 - 3);
+            g.lineTo(x0 + 0.5, r.y + 15);
+            g.stroke();
+          }
+        }
         if (r.y < top - 2) r.y = top - 2;
         placed.push(r);
         g.textBaseline = "middle";
         g.textAlign = "left";
-        g.fillStyle = T.muted;
+        g.lineJoin = "round";
+        g.lineWidth = 3.5;
+        g.strokeStyle = T.surface;
+        this.font(g, 10, 500);
+        g.strokeText(tn, r.x, r.y + 8);
+        g.fillStyle = T.ink2;
         g.fillText(tn, r.x, r.y + 8);
         this.font(g, 12, 650);
+        g.strokeText(depth, r.x + wT + 5, r.y + 8);
         g.fillStyle = T.ink;
         g.fillText(depth, r.x + wT + 5, r.y + 8);
       }
@@ -501,13 +529,16 @@ export class Chart {
       g.lineTo(edge, sy);
       g.stroke();
       g.setLineDash([]);
-      this.font(g, 10, 500);
-      g.textAlign = "right";
-      g.textBaseline = "bottom";
-      g.fillStyle = T.good;
-      g.fillText("buy zone to +5%", edge - 6, Y(A.pivot * 1.05) + 12);
-      tags.push({ y: py, text: "Pivot " + fmtPrice(A.pivot), bg: T.ink, fg: T.surface });
-      tags.push({ y: sy, text: "Stop " + fmtPrice(A.stop), bg: T.stop, fg: T.tagText });
+      const bandH = py - Y(A.pivot * 1.05);
+      if (bandH >= 15 && edge - X(A.pivotIdx) > 190) {
+        this.font(g, 10, 500);
+        g.textAlign = "right";
+        g.textBaseline = "middle";
+        g.fillStyle = T.good;
+        g.fillText("buy zone, pivot to +5%", edge - 8, py - bandH / 2);
+      }
+      tags.push({ y: py, text: "Pivot " + fmtPrice(A.pivot), bg: T.ink, fg: T.surface, fixed: true });
+      tags.push({ y: sy, text: "Stop " + fmtPrice(A.stop), bg: T.stop, fg: T.tagText, fixed: true });
 
       // Advance into the base.
       if (A.base.priorLowIdx >= i0 && A.base.priorLowIdx >= 0) {
@@ -530,13 +561,6 @@ export class Chart {
         const byy = Y(B.l[A.breakout.idx]) + 8;
         g.fillStyle = T.ink;
         tri(g, bxx, byy, 5, true);
-        this.font(g, 10, 600);
-        g.textAlign = "center";
-        g.textBaseline = "top";
-        g.fillText("breakout", bxx, byy + 8);
-        this.font(g, 10, 400);
-        g.fillStyle = T.ink2;
-        g.fillText(`vol ${A.breakout.volRatio.toFixed(1)}× avg`, bxx, byy + 20);
       }
     }
 
@@ -627,14 +651,25 @@ export class Chart {
     }
   }
 
-  /** Right-axis price tags, pushed apart so they never overlap. */
-  private drawTags(g: CanvasRenderingContext2D, tags: { y: number; text: string; bg: string; fg: string }[], edge: number) {
-    tags.sort((a, b) => a.y - b.y);
-    for (let k = 1; k < tags.length; k++) if (tags[k].y - tags[k - 1].y < 17) tags[k].y = tags[k - 1].y + 17;
+  /** Right-axis price tags. Level tags keep their place; the last-price tag steps aside. */
+  private drawTags(g: CanvasRenderingContext2D, tags: Tag[], edge: number) {
+    const fixed = tags.filter((t) => t.fixed).sort((a, b) => a.y - b.y);
+    for (let k = 1; k < fixed.length; k++) if (fixed[k].y - fixed[k - 1].y < 17) fixed[k].y = fixed[k - 1].y + 17;
+    for (const t of tags) {
+      if (t.fixed) continue;
+      const clash = (y: number) => fixed.some((f) => Math.abs(f.y - y) < 17);
+      if (clash(t.y)) {
+        let d = 1;
+        while (d < 80 && clash(t.y - d) && clash(t.y + d)) d++;
+        t.y = clash(t.y - d) ? t.y + d : t.y - d;
+        if (d > 14) t.text = "";
+      }
+    }
     this.font(g, 11, 600);
     g.textAlign = "left";
     g.textBaseline = "middle";
     for (const t of tags) {
+      if (!t.text) continue;
       const wT = g.measureText(t.text).width;
       // Long labels grow leftward into the plot rather than off the canvas.
       const x0 = Math.min(edge + 1, this.w - wT - 12);
@@ -706,7 +741,7 @@ export class Chart {
     // Scale to the visible range, but do not let one climactic day flatten everything else.
     let vmax = 0;
     let amax = 0;
-    for (let i = i0; i <= i1; i++) {
+    for (let i = i0; i <= Math.min(i1, inp.asOf); i++) {
       if (B.v[i] > vmax) vmax = B.v[i];
       if (I.vol50[i] > amax) amax = I.vol50[i];
     }

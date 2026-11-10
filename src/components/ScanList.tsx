@@ -6,9 +6,9 @@ import type { ScanFile, ScanRow } from "../data";
 type Tab = "pivot" | "breakout" | "forming" | "near" | "all";
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
-  { id: "pivot", label: "At pivot", hint: "Valid setups within 5% of the pivot" },
+  { id: "pivot", label: "At pivot", hint: "Valid setups in the upper half of the final contraction" },
   { id: "breakout", label: "Breakouts", hint: "Valid setups that have traded through the pivot and are still in the buy zone" },
-  { id: "forming", label: "Forming", hint: "Valid setups more than 5% below the pivot" },
+  { id: "forming", label: "Forming", hint: "Valid setups still in the lower half of the final contraction" },
   { id: "near", label: "Near miss", hint: "One required check short of valid" },
   { id: "all", label: "All", hint: "Every stock in the universe" },
 ];
@@ -27,11 +27,13 @@ export const FAIL_LABEL: Record<string, string> = {
   b_depth: "base too deep",
   b_adv: "no prior advance",
   c_count: "one contraction",
-  c_order: "not shrinking",
+  c_step: "not shrinking",
   c_ratio: "not halved",
   c_tight: "pivot too wide",
   c_bars: "pivot too new",
   v_dry: "volume not dry",
+  v_range: "bars not tight",
+  v_pin: "pinned price",
   none: "no base",
 };
 

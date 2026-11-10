@@ -22,8 +22,26 @@ export interface Params {
   maxFinalDepth: number;
   /** Volatility must at least halve from the first contraction to the last. */
   maxOverallRatio: number;
-  /** The pivot needs a few sessions of tight action before it is a pivot. */
+  /**
+   * TLSMW: each contraction "about half, plus or minus a reasonable amount" of the one
+   * before. A step that keeps more than this fraction of the previous depth is not a
+   * contraction. Steps between contractions that are both already inside the pivot
+   * tightness are exempt: two 7% dips side by side are one tight shelf, not looseness.
+   */
+  maxStepRatio: number;
+  /** A pivot is a pause, not a dip: at least one week of sessions since its high. */
   minFinalBars: number;
+  /**
+   * Median daily true range in the pivot area over the median in the rest of the base.
+   * This is the volatility contraction itself, measured in bars rather than swings.
+   */
+  maxRangeRatio: number;
+  /**
+   * A price that barely moves at all is pinned (typically to a takeover bid), not
+   * contracting: median daily range under `pinRange`, or under `pinRatio` of the base's.
+   */
+  pinRange: number;
+  pinRatio: number;
   /**
    * A pullback counts as a contraction only if it is deeper than `noiseMult` times the
    * median daily true range of the stretch it sits in, and never less than `noiseFloor`.
@@ -56,7 +74,11 @@ export const DEFAULTS: Params = {
   priorAdvanceLookback: 252,
   maxFinalDepth: 0.1,
   maxOverallRatio: 0.5,
-  minFinalBars: 3,
+  maxStepRatio: 0.75,
+  minFinalBars: 5,
+  maxRangeRatio: 0.85,
+  pinRange: 0.005,
+  pinRatio: 0.2,
   noiseMult: 1.5,
   noiseFloor: 0.02,
   buyZone: 0.05,
