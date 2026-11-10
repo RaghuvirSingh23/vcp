@@ -309,7 +309,7 @@ export class ChartCore {
       g.strokeStyle = upPass ? T.up : T.down;
       g.fillStyle = upPass ? T.up : T.down;
       for (const ghost of [false, true]) {
-        g.globalAlpha = ghost ? 0.4 : 1;
+        g.globalAlpha = ghost ? (T.dark ? 0.6 : 0.4) : 1;
         g.lineWidth = stem;
         g.beginPath();
         for (let i = i0; i <= i1; i++) {
@@ -624,7 +624,7 @@ export class ChartCore {
     g.rect(R.x, R.y, R.w, R.h);
     g.clip();
     for (const ghost of [false, true]) {
-      g.globalAlpha = ghost ? 0.4 : 1;
+      g.globalAlpha = ghost ? (T.dark ? 0.6 : 0.4) : 1;
       g.strokeStyle = T.rs;
       g.lineWidth = 1.4;
       g.lineJoin = "round";
@@ -679,7 +679,7 @@ export class ChartCore {
     for (let i = i0; i <= i1; i++) {
       const up = i === 0 ? true : B.c[i] >= B.c[i - 1];
       const heavy = B.v[i] >= I.vol50[i] * 1.4;
-      g.globalAlpha = (i > inp.asOf ? 0.4 : 1) * (heavy ? 1 : 0.5);
+      g.globalAlpha = (i > inp.asOf ? (T.dark ? 0.6 : 0.4) : 1) * (heavy ? 1 : 0.5);
       g.fillStyle = up ? T.up : T.down;
       const y = Y(B.v[i]);
       g.fillRect(Math.round(this.x(i) - bw / 2), y, bw, base - y);

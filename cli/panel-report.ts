@@ -79,6 +79,9 @@ const rows = key.map((k) => {
       // Where the close sits inside the final contraction (1 = at the pivot).
       closePos: (b.c[t] - last.low) / Math.max(1e-9, last.high - last.low),
       K: r.contractions.length,
+      // The last three sessions against the base: bar ranges and close-to-close moves.
+      tr3: median(I.tr, t - 2, t) / baseTr,
+      dc3: (Math.abs(b.c[t] / b.c[t - 1] - 1) + Math.abs(b.c[t - 1] / b.c[t - 2] - 1) + Math.abs(b.c[t - 2] / b.c[t - 3] - 1)) / 3 / baseTr,
       ...distribution(b, I.vol50, r.base.start, t),
     };
   }
@@ -117,7 +120,7 @@ console.log("\nEvery chart (panel score = mean of yes 1, borderline 0.5, no 0):"
 for (const r of [...rows].sort((x, y) => Number(y.valid) - Number(x.valid) || y.score - x.score)) {
   console.log(
     `${r.id} ${r.kind.padEnd(7)} ${r.valid ? "VALID" : "     "} panel ${num(r.score)} ${r.votes.padEnd(3)} ${r.market}/${r.symbol.padEnd(11)} ${String(r.date)} ${r.footprint.padEnd(14)} ` +
-      `bars ${String(r.f.bars ?? "-").padStart(3)} dn ${String(r.f.downBars ?? "-").padStart(2)} rng ${num(r.f.range)} c4 ${num(r.f.close4 * 100, 1)} wick ${num(r.f.wick)} cpos ${num(r.f.closePos)} pos ${num(r.f.pos)} dn/up ${num(r.f.maxDown, 1)}/${num(r.f.maxUp, 1)}  ${r.failed.join(",")}`,
+      `bars ${String(r.f.bars ?? "-").padStart(3)} dn ${String(r.f.downBars ?? "-").padStart(2)} rng ${num(r.f.range)} c4 ${num(r.f.close4 * 100, 1)} wick ${num(r.f.wick)} cpos ${num(r.f.closePos)} pos ${num(r.f.pos)} tr3 ${num(r.f.tr3)} dc3 ${num(r.f.dc3)} dry ${num(r.f.dry)} dK ${num(r.f.depthK * 100, 1)}  ${r.failed.join(",")}`,
   );
 }
 if (a.reasons) {

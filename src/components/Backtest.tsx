@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { HORIZONS, summarize, type Signal } from "../../engine/backtest";
 import { fmtDate, fmtPct, fmtPrice } from "../chart/theme";
-import type { BacktestFile } from "../data";
+import { BENCH_NAME, type BacktestFile } from "../data";
 
 export interface Filters {
   period: "all" | "5y" | "2020s" | "2010s" | "2000s";
@@ -215,7 +215,7 @@ export function BacktestSummary({ file, signals }: { file: BacktestFile; signals
                 <th>Mean</th>
                 <th>Median</th>
                 <th>Positive</th>
-                <th>Mean vs {file.benchmark ?? "benchmark"}</th>
+                <th>Mean vs {file.benchmark ? (BENCH_NAME[file.benchmark] ?? file.benchmark) : "benchmark"}</th>
                 <th>Signals</th>
               </tr>
             </thead>

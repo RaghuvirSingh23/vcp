@@ -283,6 +283,7 @@ button:disabled {
   gap: 10px;
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 .chart-head .sym {
   font-size: 20px;
@@ -299,6 +300,9 @@ button:disabled {
 .chart-head .sector {
   color: var(--muted);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .chart-head .quote {
   display: flex;
