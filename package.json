@@ -1,0 +1,32 @@
+{
+  "name": "vcp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Volatility Contraction Pattern scanner: point-in-time detection, annotated charts and signal backtesting for US and Indian equities.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "universe": "tsx cli/universe.ts",
+    "fetch": "tsx cli/fetch.ts",
+    "scan": "tsx cli/scan.ts",
+    "backtest": "tsx cli/backtest.ts",
+    "inspect": "tsx cli/inspect.ts"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0"
+  }
+}
