@@ -29,6 +29,18 @@ export interface Params {
    * was a pause on the way back up, not one of the contractions under the pivot.
    */
   resistance: boolean;
+  /**
+   * Measure where the pivot sits against the base's highest and lowest closes rather
+   * than its intraday extremes, so that one spike bar does not redefine the base.
+   */
+  posOnCloses: boolean;
+  /**
+   * The pivot must be the tightest recent contraction: no deeper than the last
+   * significant pullback before its high, including ones the hierarchy set aside.
+   */
+  lastTightest: boolean;
+  /** Judge volume through the pivot by its median session, so one thrust day does not hide a dry-up. */
+  dryUpMedian: boolean;
   /** An unbroken setup is actionable only while the close is this near the pivot. */
   maxPivotDistance: number;
   /**
@@ -43,10 +55,13 @@ export interface Params {
   maxFinalDepth: number;
   /**
    * The last contraction against the deepest. "About half" is Minervini's rule of thumb
-   * per step, so across a whole base anything short of roughly halving is not a
-   * contraction; 0.6 leaves room for the two-step bases chart readers accept (15% then 8%).
+   * per step, so across a deep base anything short of roughly halving is not a
+   * contraction. A base that is shallow to begin with is already tight, so the demand
+   * eases from `maxOverallRatio` at `stepDeep` depth to `maxOverallRatioTight` at pivot
+   * tightness (readers accepted 8% then 5% at new highs).
    */
   maxOverallRatio: number;
+  maxOverallRatioTight: number;
   /**
    * The pivot forms near the top of the base: no further under its high than
    * `pivotGapShare` of the base's depth. 0.35 is Minervini's upper third, the handle
@@ -111,6 +126,18 @@ export interface Params {
   breakoutVolMult: number;
   /** Mean volume through the final contraction must sit under the 50-day average. */
   dryUpMax: number;
+  /**
+   * Grade A: a valid setup with no weakness. Every line is a textbook preference, and
+   * together they are what three independent blind chart readers accepted without
+   * exception: at least `gradeCount` contractions, the 200-day average up `gradeTrend`
+   * over `trendMonths` months, a base no deeper than `idealBaseDepth`, a final
+   * contraction no deeper than `gradeFinalDepth`, and volume through it at or under
+   * `gradeDryUp` of average. A valid setup missing any of them is grade B.
+   */
+  gradeCount: number;
+  gradeTrend: number;
+  gradeFinalDepth: number;
+  gradeDryUp: number;
   /** Bars either side for a high to count as a candidate left-side high. */
   fractal: number;
 }
@@ -124,12 +151,16 @@ export const DEFAULTS: Params = {
   minBaseDepth: 0.075,
   nestedRetest: true,
   resistance: true,
+  posOnCloses: false,
+  lastTightest: false,
+  dryUpMedian: false,
   maxPivotDistance: 0.07,
   maxRecentRange: 1.3,
   minPriorAdvance: 0.3,
   priorAdvanceLookback: 252,
   maxFinalDepth: 0.1,
   maxOverallRatio: 0.6,
+  maxOverallRatioTight: 0.6,
   pivotGapShare: 0.35,
   pivotGapMin: 0,
   maxStepRatio: 0.7,
@@ -147,6 +178,10 @@ export const DEFAULTS: Params = {
   aboveLowMin: 0.3,
   belowHighMax: 0.25,
   breakoutVolMult: 1.4,
+  gradeCount: 3,
+  gradeTrend: 0.08,
+  gradeFinalDepth: 0.08,
+  gradeDryUp: 0.85,
   dryUpMax: 1.0,
   fractal: 5,
 };

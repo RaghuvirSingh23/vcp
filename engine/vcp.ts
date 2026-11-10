@@ -84,6 +84,10 @@ export interface Analysis {
   young: boolean;
   /** 0..100, quality of a valid setup. Meaningless when invalid. */
   score: number;
+  /** A = valid with no weakness; B = valid with the weaknesses listed; null = not valid. */
+  grade: "A" | "B" | null;
+  /** Ids of the grade-A conditions a valid setup misses. */
+  weaknesses: string[];
   /** Minervini's shorthand: weeks, deepest/tightest contraction, count. e.g. "12W 24/4 3T". */
   footprint: string;
   base: {
@@ -143,6 +147,7 @@ export function trendChecks(B: Bars, I: Ind, t: number, P: Params = DEFAULTS): {
   const longBars = P.trendMonths * 21;
   const m200Long = t >= longBars ? I.sma200[t - longBars] : NaN;
   const m50Prev = t >= 10 ? I.sma50[t - 10] : NaN;
+  const m150Prev = t >= 21 ? I.sma150[t - 21] : NaN;
   const hi = I.hi252[t];
   const lo = I.lo252[t];
   const rs = I.rs[t];
@@ -160,10 +165,10 @@ export function trendChecks(B: Bars, I: Ind, t: number, P: Params = DEFAULTS): {
   const checks: Check[] = [
     mk(
       "tt1",
-      "Price above 150- and 200-day MA",
-      has(m150, m200) ? c > m150 && c > m200 : null,
-      has(m150, m200) ? `${num(c)} vs ${num(m150)} / ${num(m200)}` : "n/a",
-      "above both",
+      has(m200) ? "Price above 150- and 200-day MA" : "Price above 150-day MA",
+      has(m150, m200) ? c > m150 && c > m200 : has(m150) ? c > m150 : null,
+      has(m150, m200) ? `${num(c)} vs ${num(m150)} / ${num(m200)}` : has(m150) ? `${num(c)} vs ${num(m150)}` : "n/a",
+      "above",
     ),
     mk(
       "tt2",
@@ -174,17 +179,25 @@ export function trendChecks(B: Bars, I: Ind, t: number, P: Params = DEFAULTS): {
     ),
     mk(
       "tt3",
-      `200-day MA rising, and above ${P.trendMonths} months ago`,
-      has(m200, m200Prev) ? m200 > m200Prev && (has(m200Long) ? m200 > m200Long : true) : null,
-      has(m200, m200Prev) ? pc(m200 / m200Prev - 1, 1) + " in a month" + (has(m200Long) ? ", " + pc(m200 / m200Long - 1, 0) + ` in ${P.trendMonths}` : "") : "n/a",
-      "rising over both",
+      has(m200) ? `200-day MA rising, and above ${P.trendMonths} months ago` : "150-day MA rising",
+      has(m200, m200Prev)
+        ? m200 > m200Prev && (has(m200Long) ? m200 > m200Long : true)
+        : has(m150, m150Prev)
+          ? m150 > m150Prev
+          : null,
+      has(m200, m200Prev)
+        ? pc(m200 / m200Prev - 1, 1) + " in a month" + (has(m200Long) ? ", " + pc(m200 / m200Long - 1, 0) + ` in ${P.trendMonths}` : "")
+        : has(m150, m150Prev)
+          ? pc(m150 / m150Prev - 1, 1) + " in a month"
+          : "n/a",
+      "rising",
     ),
     mk(
       "tt4",
-      "50-day MA above 150- and 200-day MA",
-      has(m50, m150, m200) ? m50 > m150 && m50 > m200 : null,
-      has(m50, m150, m200) ? `${num(m50)} vs ${num(m150)} / ${num(m200)}` : "n/a",
-      "above both",
+      has(m200) ? "50-day MA above 150- and 200-day MA" : "50-day MA above 150-day MA",
+      has(m50, m150, m200) ? m50 > m150 && m50 > m200 : has(m50, m150) ? m50 > m150 : null,
+      has(m50, m150, m200) ? `${num(m50)} vs ${num(m150)} / ${num(m200)}` : has(m50, m150) ? `${num(m50)} vs ${num(m150)}` : "n/a",
+      "above",
     ),
     mk("tt5", "Price above 50-day MA", has(m50) ? c > m50 : null, has(m50) ? `${num(c)} vs ${num(m50)}` : "n/a", "above"),
     mk(
@@ -335,10 +348,35 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
   const priorAdvance = priorLowIdx >= 0 ? h[s] / priorLow - 1 : 0;
   const fromBelow = priorLowIdx >= 0 && priorLow < l[l1];
   const deepest = Math.max(...cons.map((x) => x.depth));
+  const ease = (deep: number, tight: number, at: number) =>
+    deep + (tight - deep) * Math.min(1, Math.max(0, (P.stepDeep - at) / (P.stepDeep - P.maxFinalDepth)));
+  const overallAllowed = ease(P.maxOverallRatio, P.maxOverallRatioTight, deepest);
+  // The significant pullback, if any, in the rally that led into the pivot high.
+  let lastTightest = true;
+  let priorDepth = NaN;
+  if (P.lastTightest && K >= 2) {
+    const from = cons[K - 2].lo;
+    const m = maxDrawdown(h, l, from, last.hi);
+    if (m && m.depth >= noiseAt(I, from + 1, last.hi, P)) {
+      priorDepth = m.depth;
+      lastTightest = last.depth <= m.depth;
+    }
+  }
   // How far under the base's high the pivot sits, against the room the base allows.
-  const baseHigh = Math.max(...cons.map((x) => x.high));
-  const pivotGap = (baseHigh - last.high) / baseHigh;
-  const gapAllowed = Math.max(d1 * P.pivotGapShare, P.pivotGapMin);
+  let baseHigh = Math.max(...cons.map((x) => x.high));
+  let spanDepth = d1;
+  if (P.posOnCloses) {
+    let hiC = -Infinity;
+    let loC = Infinity;
+    for (let i = s; i <= t; i++) {
+      if (c[i] > hiC) hiC = c[i];
+      if (c[i] < loC) loC = c[i];
+    }
+    baseHigh = hiC;
+    spanDepth = (hiC - loC) / hiC;
+  }
+  const pivotGap = Math.max(0, (baseHigh - last.high) / baseHigh);
+  const gapAllowed = Math.max(spanDepth * P.pivotGapShare, P.pivotGapMin);
 
   const bars = (bo >= 0 ? bo : t) - s;
   const finalBars = endF - last.hi;
@@ -400,9 +438,17 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
       "c_ratio",
       "contraction",
       "Final vs deepest contraction",
-      K >= 2 && last.depth <= P.maxOverallRatio * deepest,
+      K >= 2 && last.depth <= overallAllowed * deepest,
       K >= 2 ? num(last.depth / deepest) + "×" : "n/a",
-      `≤ ${num(P.maxOverallRatio)}×`,
+      `≤ ${num(overallAllowed)}×`,
+    ),
+    mk(
+      "c_last",
+      "contraction",
+      "Final contraction is the tightest recent one",
+      lastTightest,
+      Number.isFinite(priorDepth) ? `${pc(last.depth)} after ${pc(priorDepth)}` : pc(last.depth),
+      "no deeper than the pullback before it",
     ),
     mk(
       "c_pos",
@@ -485,7 +531,7 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
 
   // Volume through the pivot area, against the 50-day average the trader sees on the chart.
   const avg = I.vol50[endF];
-  const dryUp = hasWindow ? mean(v, wA, endF) / avg : NaN;
+  const dryUp = hasWindow ? (P.dryUpMedian ? median(v, wA, endF) : mean(v, wA, endF)) / avg : NaN;
   let minVol = Infinity;
   for (let i = wA; i <= endF; i++) if (v[i] < minVol) minVol = v[i];
   const lowDay = hasWindow ? minVol / avg : NaN;
@@ -547,23 +593,33 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
       required: true,
     },
   ];
+  // Grade-A conditions. None decides validity; together they decide the grade.
+  const longBars = P.trendMonths * 21;
+  const trendGain = t >= longBars && I.sma200[t - longBars] === I.sma200[t - longBars] ? I.sma200[t] / I.sma200[t - longBars] - 1 : NaN;
+  const q = (id: string, group: CheckGroup, label: string, ok: boolean | null, value: string, want: string): Check => ({
+    id,
+    group,
+    label,
+    value,
+    want,
+    pass: ok,
+    required: false,
+  });
   const quality: Check[] = [
-    {
-      id: "q_depth",
-      group: "base",
-      label: "Base depth in the constructive range",
-      value: pc(best.depth),
-      want: `≤ ${pc(P.idealBaseDepth, 0)}`,
-      pass: best.depth <= P.idealBaseDepth,
-      required: false,
-    },
+    q("q_trend", "trend", `200-day MA gain over ${P.trendMonths} months`, Number.isFinite(trendGain) ? trendGain >= P.gradeTrend : null, pc(trendGain, 0), `≥ ${pc(P.gradeTrend, 0)}`),
+    q("q_depth", "base", "Base depth in the constructive range", best.depth <= P.idealBaseDepth, pc(best.depth), `≤ ${pc(P.idealBaseDepth, 0)}`),
+    q("q_count", "contraction", "Three or more contractions", K >= P.gradeCount, String(K), `≥ ${P.gradeCount}`),
+    q("q_final", "contraction", "Final contraction tight", last.depth <= P.gradeFinalDepth, pc(last.depth), `≤ ${pc(P.gradeFinalDepth, 0)}`),
+    q("q_dry", "volume", "Volume clearly dried up", Number.isFinite(dryUp) ? dryUp <= P.gradeDryUp : null, Number.isFinite(dryUp) ? num(dryUp) + "×" : "n/a", `≤ ${num(P.gradeDryUp)}×`),
   ];
-
   const checks = [...trend, ...best.structural, ...quality, ...volume];
   const failed = checks.filter((x) => x.required && x.pass === false).map((x) => x.id);
   // A required check that could not be evaluated blocks validity unless the stock is simply too young for it.
   const unknown = checks.some((x) => x.required && x.pass === null && !(young && x.group === "trend"));
   const valid = failed.length === 0 && !unknown;
+  // A condition that cannot be evaluated (a stock too young for a five-month trend) is a weakness.
+  const weaknesses = valid ? quality.filter((x) => x.pass !== true).map((x) => x.id) : [];
+  const grade = !valid ? null : weaknesses.length === 0 ? "A" : "B";
 
   // Score: how textbook the setup is. Each part is 0..1.
   const rs = I.rs[t];
@@ -602,6 +658,8 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
     kind,
     young,
     score,
+    grade,
+    weaknesses,
     footprint,
     base: {
       start: best.s,

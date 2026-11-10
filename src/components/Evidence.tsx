@@ -1,7 +1,7 @@
 import type { Bars } from "../../engine/types";
 import type { Analysis, Check, CheckGroup } from "../../engine/vcp";
 import { fmtDate, fmtPrice } from "../chart/theme";
-import { FAIL_LABEL } from "./ScanList";
+import { FAIL_LABEL, WEAK_LABEL } from "./ScanList";
 
 const GROUPS: { id: CheckGroup; title: string }[] = [
   { id: "trend", title: "Trend template" },
@@ -49,10 +49,16 @@ export function Evidence({ bars, analysis: a, asOf }: { bars: Bars; analysis: An
         <div className="kicker">Read on {fmtDate(a.date)}</div>
         <div className={"headline " + (a.valid ? "ok" : "no")}>{a.valid ? `VCP, ${STATE_TEXT[a.state]}` : "Not a VCP"}</div>
         {a.valid ? (
-          <p className="why">
-            {a.kind === "classic" ? "Pivot in the upper third of the base." : a.kind === "cheat" ? "Cheat entry: pivot in the middle third of the base." : "Low cheat: pivot in the lower third of the base."}
-            {a.young ? " Less than a year of history, so long moving averages are not applicable." : ""}
-          </p>
+          <>
+            <div className={"gradeline " + (a.grade === "A" ? "a" : "b")}>
+              <span className={"grade " + (a.grade === "A" ? "a" : "b")}>{a.grade}</span>
+              {a.grade === "A" ? "Textbook: no weakness" : "Valid, with: " + a.weaknesses.map((w) => WEAK_LABEL[w] ?? w).join(", ")}
+            </div>
+            <p className="why">
+              {a.kind === "classic" ? "Pivot in the upper third of the base." : a.kind === "cheat" ? "Pivot in the middle third of the base." : "Pivot in the lower third of the base."}
+              {a.young ? " Less than a year of history, so long moving averages are not applicable." : ""}
+            </p>
+          </>
         ) : (
           <p className="why">Fails: {a.failed.map((f) => FAIL_LABEL[f] ?? f).join(", ") || "a required check could not be evaluated"}.</p>
         )}
@@ -145,7 +151,7 @@ export function Evidence({ bars, analysis: a, asOf }: { bars: Bars; analysis: An
                   <Mark c={c} />
                   <span className="lab">
                     {c.label}
-                    {!c.required && <i> quality</i>}
+                    {!c.required && <i> grade</i>}
                   </span>
                   <span className="val" title={"wants " + c.want}>
                     {c.value}

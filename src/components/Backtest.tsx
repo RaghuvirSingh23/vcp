@@ -5,12 +5,12 @@ import { BENCH_NAME, type BacktestFile } from "../data";
 
 export interface Filters {
   period: "all" | "5y" | "2020s" | "2010s" | "2000s";
-  score: number;
+  grade: "any" | "A" | "B";
   count: "any" | "2" | "3" | "4";
   volume: "any" | "confirmed";
   market: "any" | "uptrend";
 }
-export const NO_FILTERS: Filters = { period: "all", score: 0, count: "any", volume: "any", market: "any" };
+export const NO_FILTERS: Filters = { period: "all", grade: "any", count: "any", volume: "any", market: "any" };
 
 export function applyFilters(file: BacktestFile, f: Filters): Signal[] {
   const lastYear = Math.floor(file.to / 10000);
@@ -21,7 +21,7 @@ export function applyFilters(file: BacktestFile, f: Filters): Signal[] {
     if (f.period === "2020s" && y < 2020) return false;
     if (f.period === "2010s" && (y < 2010 || y > 2019)) return false;
     if (f.period === "2000s" && y > 2009) return false;
-    if (s.score < f.score) return false;
+    if (f.grade !== "any" && s.grade !== f.grade) return false;
     if (f.count === "2" && s.count !== 2) return false;
     if (f.count === "3" && s.count !== 3) return false;
     if (f.count === "4" && s.count < 4) return false;
@@ -75,14 +75,12 @@ export function SignalList({
             <option value="2000s">2000s</option>
           </select>
         </label>
-        <label>
-          Quality
-          <select value={filters.score} onChange={(e) => set("score", Number(e.target.value))}>
-            <option value={0}>Any score</option>
-            <option value={50}>50 and up</option>
-            <option value={60}>60 and up</option>
-            <option value={70}>70 and up</option>
-            <option value={80}>80 and up</option>
+        <label title="Grade A: valid with no weakness. Grade B: valid, with at least one.">
+          Grade
+          <select value={filters.grade} onChange={(e) => set("grade", e.target.value as Filters["grade"])}>
+            <option value="any">A and B</option>
+            <option value="A">A only</option>
+            <option value="B">B only</option>
           </select>
         </label>
         <label>
@@ -113,7 +111,7 @@ export function SignalList({
           <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)}>
             <option value="date">Newest first</option>
             <option value="r">Best result first</option>
-            <option value="score">Highest quality first</option>
+            <option value="score">Highest score first</option>
           </select>
         </label>
       </div>
@@ -145,8 +143,8 @@ export function SignalList({
               <span className="where">
                 {s.reason === "stop" ? "stopped" : s.reason === "trend" ? "closed under 50-day" : "still open"} · {s.hold}d
               </span>
-              <span className="score" title="Setup quality, 0–100">
-                {s.score}
+              <span className={"grade " + (s.grade === "A" ? "a" : "b")} title={s.grade === "A" ? "Grade A" : "Grade B"}>
+                {s.grade}
               </span>
             </div>
           </button>

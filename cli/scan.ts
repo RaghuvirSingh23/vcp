@@ -23,6 +23,8 @@ export interface ScanRow {
   value: number;
   rs: number;
   valid: boolean;
+  grade: "A" | "B" | null;
+  weaknesses: string[];
   state: string;
   kind: string;
   score: number;
@@ -72,6 +74,8 @@ function run(market: Market, a: Record<string, string>) {
       value: vals[Math.floor(vals.length / 2)],
       rs: I.rs[t] || 0,
       valid: !!r?.valid,
+      grade: r?.grade ?? null,
+      weaknesses: r?.weaknesses ?? [],
       state: r?.state ?? "none",
       kind: r?.kind ?? "",
       score: r?.score ?? 0,
@@ -87,7 +91,7 @@ function run(market: Market, a: Record<string, string>) {
     };
     rows.push(row);
   }
-  rows.sort((x, y) => Number(y.valid) - Number(x.valid) || y.score - x.score);
+  rows.sort((x, y) => Number(y.valid) - Number(x.valid) || (x.grade ?? "Z").localeCompare(y.grade ?? "Z") || y.score - x.score);
   writeJson(join(DATA, "scan", market + ".json"), {
     market,
     date: marketDate,
@@ -100,13 +104,13 @@ function run(market: Market, a: Record<string, string>) {
   if (!a.asof) for (const b of M.all) writeJson(barsPath(market, b.symbol), b);
   const valid = rows.filter((r) => r.valid);
   console.log(
-    `${market} ${marketDate}: ${rows.length} read, ${valid.length} valid ` +
+    `${market} ${marketDate}: ${rows.length} read, ${valid.length} valid (${valid.filter((r) => r.grade === "A").length} grade A) ` +
       `(${valid.filter((r) => r.state === "ready").length} at pivot, ${valid.filter((r) => r.state === "breakout").length} breaking out, ` +
       `${valid.filter((r) => r.state === "forming").length} forming, ${valid.filter((r) => r.state === "extended").length} extended), ` +
       `${stale} stale, ${Math.round((Date.now() - t0) / 100) / 10}s`,
   );
   for (const r of valid.slice(0, 15))
-    console.log(`  ${r.symbol.padEnd(12)} ${r.state.padEnd(9)} ${r.footprint.padEnd(14)} score ${String(r.score).padStart(3)}  RS ${String(r.rs).padStart(2)}  pivot ${r.pivot}  ${(r.dist * 100).toFixed(1)}% away`);
+    console.log(`  ${r.grade} ${r.symbol.padEnd(12)} ${r.state.padEnd(9)} ${r.footprint.padEnd(14)} score ${String(r.score).padStart(3)}  RS ${String(r.rs).padStart(2)}  pivot ${r.pivot}  ${(r.dist * 100).toFixed(1)}% away`);
 }
 
 function daysBetween(a: number, b: number): number {

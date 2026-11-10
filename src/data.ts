@@ -13,6 +13,8 @@ export interface ScanRow {
   value: number;
   rs: number;
   valid: boolean;
+  grade: "A" | "B" | null;
+  weaknesses: string[];
   state: string;
   kind: string;
   score: number;

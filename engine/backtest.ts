@@ -42,6 +42,9 @@ export interface Signal {
   /** Open gapped beyond the buy zone. Recorded, but a chaser's trade, not the pattern's. */
   chase: boolean;
   footprint: string;
+  /** A = no weakness, B = valid with one or more. */
+  grade: "A" | "B";
+  weaknesses: string[];
   score: number;
   count: number;
   firstDepth: number;
@@ -209,6 +212,8 @@ function outcome(B: Bars, I: Ind, bench: BenchRef | null, a: Analysis, t: number
     risk: r4(risk),
     chase: entry > pivot * (1 + P.buyZone),
     footprint: a.footprint,
+    grade: a.grade === "A" ? "A" : "B",
+    weaknesses: a.weaknesses,
     score: a.score,
     count: a.contractions.length,
     firstDepth: r4(a.base.depth),

@@ -85,7 +85,7 @@ const rows = key.map((k) => {
       ...distribution(b, I.vol50, r.base.start, t),
     };
   }
-  return { ...k, valid: !!r?.valid, failed: r?.failed ?? ["none"], footprint: r?.footprint ?? "", state: r?.state ?? "", score, votes: rv.map((x) => x.verdict[0]).join(""), rv, f };
+  return { ...k, valid: !!r?.valid, grade: r?.grade ?? null, failed: r?.failed ?? ["none"], footprint: r?.footprint ?? "", state: r?.state ?? "", score, votes: rv.map((x) => x.verdict[0]).join(""), rv, f };
 });
 
 /** Heaviest down day and heaviest up day inside the base, as multiples of average volume. */
@@ -104,7 +104,7 @@ function distribution(b: Bars, vol50: Float64Array, from: number, to: number) {
 const cls = (s: number) => (s >= 0.67 ? "YES" : s >= 0.34 ? "mid" : "no");
 console.log(`round ${round}: ${rows.length} charts, ${reviews.length} reviews\n`);
 console.log("Panel verdict by what the chart is (rows) — YES / mid / no:");
-for (const kind of ["ref", "valid", "near", "control", "down"]) {
+for (const kind of ["ref", "valid", "A", "B", "near", "control", "down"]) {
   const list = rows.filter((r) => r.kind === kind);
   const c = (v: string) => list.filter((r) => cls(r.score) === v).length;
   console.log(`  ${kind.padEnd(8)} n ${String(list.length).padStart(2)}   YES ${String(c("YES")).padStart(2)}   mid ${String(c("mid")).padStart(2)}   no ${String(c("no")).padStart(2)}`);
@@ -116,6 +116,12 @@ for (const v of [true, false]) {
   console.log(`  detector ${v ? "valid  " : "invalid"} n ${String(list.length).padStart(2)}   YES ${String(c("YES")).padStart(2)}   mid ${String(c("mid")).padStart(2)}   no ${String(c("no")).padStart(2)}`);
 }
 const num = (x: number, d = 2) => (Number.isFinite(x) ? x.toFixed(d) : "  - ");
+console.log("\nPanel verdict by the detector's grade now:");
+for (const gr of ["A", "B", null]) {
+  const list = rows.filter((r) => r.grade === gr);
+  const c = (x: string) => list.filter((r) => cls(r.score) === x).length;
+  console.log(`  ${gr ? "grade " + gr : "invalid"}  n ${String(list.length).padStart(2)}   YES ${String(c("YES")).padStart(2)}   mid ${String(c("mid")).padStart(2)}   no ${String(c("no")).padStart(2)}`);
+}
 console.log("\nEvery chart (panel score = mean of yes 1, borderline 0.5, no 0):");
 for (const r of [...rows].sort((x, y) => Number(y.valid) - Number(x.valid) || y.score - x.score)) {
   console.log(

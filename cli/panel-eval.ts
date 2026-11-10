@@ -50,33 +50,16 @@ console.log(`panel: ${yes} clear yes, ${items.filter((x) => x.score >= 0.5).leng
 
 const VARIANTS: [string, Partial<Params>][] = [
   ["current", {}],
-  ["pos 0.35, no abs", { pivotGapShare: 0.35, pivotGapMin: 0 }],
-  ["pos 0.35, abs 4%", { pivotGapShare: 0.35, pivotGapMin: 0.04 }],
-  ["noise 1.4", { noiseMult: 1.4 }],
-  ["nested retest", { nestedRetest: true }],
-  ["min depth 7.5%", { minBaseDepth: 0.075 }],
-  ["dry 0.9", { dryUpMax: 0.9 }],
-  ["dry 0.85", { dryUpMax: 0.85 }],
-  ["recent 1.0", { maxRecentRange: 1.0 }],
-  ["recent 0.9", { maxRecentRange: 0.9 }],
-  ["step 0.7", { maxStepRatio: 0.7 }],
-  ["ratio 0.5", { maxOverallRatio: 0.5 }],
-  ["bars 5", { minFinalBars: 5 }],
-  ["resistance", { resistance: true }],
-  ["reach 5%", { maxPivotDistance: 0.05 }],
-  ["tol 3%", { failedBreakoutTol: 0.03 }],
-  ["recent 1.3", { maxRecentRange: 1.3 }],
+  ["median dry-up", { dryUpMedian: true }],
+  ["median dry-up 0.9", { dryUpMedian: true, dryUpMax: 0.9 }],
+  ["median dry-up 0.8", { dryUpMedian: true, dryUpMax: 0.8 }],
+  ["ratio eases to 0.85", { maxOverallRatioTight: 0.85 }],
+  ["ratio eases to 0.75", { maxOverallRatioTight: 0.75 }],
+  ["position on closes", { posOnCloses: true }],
+  ["last tightest", { lastTightest: true }],
+  ["all four", { dryUpMedian: true, maxOverallRatioTight: 0.85, posOnCloses: true, lastTightest: true }],
+  ["all four, dry 0.9", { dryUpMedian: true, dryUpMax: 0.9, maxOverallRatioTight: 0.85, posOnCloses: true, lastTightest: true }],
 ];
-const BASE: Partial<Params> = { pivotGapShare: 0.35, pivotGapMin: 0, nestedRetest: true, minBaseDepth: 0.075, maxStepRatio: 0.7, noiseMult: 1.4 };
-for (const [name, extra] of [
-  ["A: base combo", {}],
-  ["A + resistance", { resistance: true }],
-  ["A + reach 5%", { maxPivotDistance: 0.05 }],
-  ["A + res + reach", { resistance: true, maxPivotDistance: 0.05 }],
-  ["A + res + reach + rec1.3", { resistance: true, maxPivotDistance: 0.05, maxRecentRange: 1.3 }],
-  ["A + res + reach + tol3", { resistance: true, maxPivotDistance: 0.05, failedBreakoutTol: 0.03 }],
-  ["A + res + reach + bars5", { resistance: true, maxPivotDistance: 0.05, minFinalBars: 5 }],
-] as [string, Partial<Params>][]) VARIANTS.push([name, { ...BASE, ...extra }]);
 if (a.combo) {
   // --combo "pivotGapShare=0.35,pivotGapMin=0,nestedRetest=true"
   const o: Record<string, unknown> = {};

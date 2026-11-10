@@ -33,12 +33,22 @@ export const FAIL_LABEL: Record<string, string> = {
   c_tight: "pivot too wide",
   c_pos: "pivot low in base",
   c_reach: "far from pivot",
+  c_last: "pivot not tightest",
   c_bars: "pivot too new",
   v_dry: "volume not dry",
   v_range: "bars not tight",
   v_recent: "still swinging",
   v_pin: "pinned price",
   none: "no base",
+};
+
+/** What keeps a valid setup out of grade A, in a few words. */
+export const WEAK_LABEL: Record<string, string> = {
+  q_trend: "long-term trend not strong",
+  q_depth: "deep base",
+  q_count: "two contractions only",
+  q_final: "pivot on the wide side",
+  q_dry: "volume not clearly dry",
 };
 
 function inTab(r: ScanRow, tab: Tab): boolean {
@@ -92,7 +102,9 @@ export function ScanList({
     );
     if (needle) out = out.sort((a, b) => Number(b.symbol.toLowerCase() === needle) - Number(a.symbol.toLowerCase() === needle));
     else if (tab === "all") out = [...out].sort((a, b) => a.symbol.localeCompare(b.symbol));
-    else if (tab === "breakout") out = [...out].sort((a, b) => (a.breakout?.barsAgo ?? 99) - (b.breakout?.barsAgo ?? 99) || b.score - a.score);
+    else if (tab === "breakout")
+      out = [...out].sort((a, b) => (a.grade ?? "Z").localeCompare(b.grade ?? "Z") || (a.breakout?.barsAgo ?? 99) - (b.breakout?.barsAgo ?? 99) || b.score - a.score);
+    else if (tab !== "near") out = [...out].sort((a, b) => (a.grade ?? "Z").localeCompare(b.grade ?? "Z") || b.score - a.score);
     return out.slice(0, 400);
   }, [scan, tab, q]);
 
@@ -161,8 +173,13 @@ export function ScanList({
                   {r.failed.length > 2 ? ` +${r.failed.length - 2}` : ""}
                 </span>
               )}
-              {r.valid && <span className="score" title="Setup quality, 0–100">{r.score}</span>}
+              {r.valid && (
+                <span className={"grade " + (r.grade === "A" ? "a" : "b")} title={r.grade === "A" ? "Grade A: valid with no weakness" : "Grade B: valid, with a weakness"}>
+                  {r.grade}
+                </span>
+              )}
             </div>
+            {r.valid && r.grade === "B" && <div className="l3">{r.weaknesses.map((w) => WEAK_LABEL[w] ?? w).join(" · ")}</div>}
           </button>
         ))}
       </div>

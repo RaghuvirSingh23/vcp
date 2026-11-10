@@ -18,8 +18,8 @@ interface Item {
   market: Market;
   symbol: string;
   date: number;
-  /** valid = detector says VCP; near = one required check short; control = uptrend, no setup; down = fails the trend template; ref = published textbook case. */
-  kind: "valid" | "near" | "control" | "down" | "ref";
+  /** A / B = detector says VCP, by grade (valid = either, in early rounds); near = one required check short; control = uptrend, no setup; down = fails the trend template; ref = published textbook case. */
+  kind: "valid" | "A" | "B" | "near" | "control" | "down" | "ref";
   footprint: string;
   failed: string[];
   path: string;
@@ -33,7 +33,7 @@ const rnd = () => {
   return seed / 2147483648;
 };
 const pick = <T,>(xs: T[]) => xs[Math.floor(rnd() * xs.length)];
-const want = { valid: Number(a.valid ?? 15), near: Number(a.near ?? 10), control: Number(a.control ?? 6), down: Number(a.down ?? 3) };
+const want = { A: Number(a.a ?? 12), B: Number(a.b ?? 6), near: Number(a.near ?? 10), control: Number(a.control ?? 6), down: Number(a.down ?? 3) };
 
 const items: Omit<Item, "id" | "path">[] = [];
 for (const market of ["us", "in"] as Market[]) {
@@ -44,11 +44,16 @@ for (const market of ["us", "in"] as Market[]) {
   const bt = readJson<{ signals: Signal[] }>(join(DATA, "backtest", market + ".json"));
   const sig = (bt?.signals ?? []).filter((s) => s.setupDate >= 20120101 && !s.chase);
   const seen = new Set<string>();
-  while (seen.size < Math.min(want.valid, sig.length)) {
-    const s = pick(sig);
-    if (seen.has(s.symbol)) continue;
-    seen.add(s.symbol);
-    items.push({ market, symbol: s.symbol, date: s.setupDate, kind: "valid", footprint: s.footprint, failed: [] });
+  for (const grade of ["A", "B"] as const) {
+    const pool = sig.filter((s) => s.grade === grade);
+    let got = 0;
+    for (let guard = 0; guard < 5000 && got < Math.min(want[grade], pool.length); guard++) {
+      const s = pick(pool);
+      if (seen.has(s.symbol)) continue;
+      seen.add(s.symbol);
+      got++;
+      items.push({ market, symbol: s.symbol, date: s.setupDate, kind: grade, footprint: s.footprint, failed: [] });
+    }
   }
 
   // Random stock-days for the other classes.
@@ -105,4 +110,4 @@ items.forEach((it, i) => {
 writeJson(join(dir, "key.json"), key);
 const count = (k: string) => key.filter((x) => x.kind === k).length;
 console.log(`round ${round}: ${key.length} charts in ${dir}`);
-console.log(`  valid ${count("valid")}, near ${count("near")}, control ${count("control")}, down ${count("down")}, ref ${count("ref")}`);
+console.log(`  grade A ${count("A")}, grade B ${count("B")}, near ${count("near")}, control ${count("control")}, down ${count("down")}, ref ${count("ref")}`);

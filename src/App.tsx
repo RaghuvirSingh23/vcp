@@ -328,7 +328,7 @@ export function App() {
               Pick a signal on the left to see the chart exactly as the detector saw it the day before the breakout, with the entry, stop and exit drawn on what
               followed.
             </p>
-            <p className="why">Filters apply to every figure on this page. Quality, contraction count and market trend were all known before the breakout. Breakout volume was not.</p>
+            <p className="why">Filters apply to every figure on this page. Grade, contraction count and market trend were all known before the breakout. Breakout volume was not.</p>
           </div>
         )}
       </aside>

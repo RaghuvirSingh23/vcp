@@ -62,6 +62,13 @@ function run(market: Market, a: Record<string, string>) {
   );
   for (const h of S.horizons)
     console.log(`  +${String(h.bars).padStart(2)}d: mean ${pct(h.mean)}  median ${pct(h.median)}  positive ${pct(h.positive)}  vs benchmark ${pct(h.excess)}  (n ${h.n})`);
+  for (const grade of ["A", "B"] as const) {
+    const g = summarize(taken.filter((s) => s.grade === grade));
+    const h = g.horizons[3];
+    console.log(
+      `  grade ${grade}: n ${g.n}  win ${pct(g.winRate)}  avg ${g.avgR.toFixed(2)}R  PF ${g.profitFactor.toFixed(2)}  +60d mean ${pct(h.mean)} vs benchmark ${pct(h.excess)}`,
+    );
+  }
   const byYear = new Map<number, Signal[]>();
   for (const s of taken) {
     const y = Math.floor(s.date / 10000);

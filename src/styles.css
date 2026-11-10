@@ -762,3 +762,42 @@ button:disabled {
 .tbl.mini th {
   padding-right: 0;
 }
+
+/* ── grade ── */
+.grade {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  text-align: center;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 16px;
+}
+.grade.a {
+  background: var(--ink);
+  color: var(--surface);
+}
+.grade.b {
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink2);
+}
+.row .l3 {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gradeline {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 6px;
+  font-weight: 600;
+}
+.gradeline.b {
+  color: var(--ink2);
+  font-weight: 500;
+}
