@@ -115,6 +115,7 @@ export interface Analysis {
     dryUp: number;
     lowDay: number;
     rangeContraction: number;
+    recentRange: number;
     pivotPos: number;
     finalBars: number;
     rs: number;
@@ -274,7 +275,9 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
     if (!md || md.depth < noiseAt(I, k + 1, t, P)) break;
     // A pullback from the lower half of the base is the low being retested (the second
     // leg of a double bottom), part of the base forming rather than a contraction.
-    if (h[md.p] >= mid) push(md.p, md.q);
+    const prev = cons[cons.length - 1];
+    const floor = P.nestedRetest ? Math.max(mid, (prev.high + prev.low) / 2) : mid;
+    if (h[md.p] >= floor) push(md.p, md.q);
     k = md.q;
   }
   // First bar after a contraction's low that trades above its high.
@@ -359,7 +362,14 @@ function read(B: Bars, I: Ind, s: number, t: number, P: Params): Reading | null 
       `${bars} bars (${Math.round(bars / 5)}w)`,
       `${P.minBaseBars / 5}–${P.maxBaseBars / 5} weeks`,
     ),
-    mk("b_depth", "base", "Base depth", d1 <= P.maxBaseDepth, pc(d1), `≤ ${pc(P.maxBaseDepth, 0)}`),
+    mk(
+      "b_depth",
+      "base",
+      "Base depth",
+      d1 <= P.maxBaseDepth && d1 >= P.minBaseDepth,
+      pc(d1),
+      P.minBaseDepth > 0 ? `${pc(P.minBaseDepth, 0)}–${pc(P.maxBaseDepth, 0)}` : `≤ ${pc(P.maxBaseDepth, 0)}`,
+    ),
     mk(
       "b_adv",
       "base",
@@ -466,6 +476,8 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
   const rangeContraction =
     hasWindow && last.hi > best.s ? median(I.tr, wA, endF) / median(I.tr, best.s + 1, last.hi) : NaN;
   const pivotRange = hasWindow ? median(I.tr, wA, endF) : NaN;
+  const baseRange = last.hi > best.s ? median(I.tr, best.s + 1, last.hi) : NaN;
+  const recentRange = endF - 2 > best.s && baseRange > 0 ? median(I.tr, endF - 2, endF) / baseRange : NaN;
   const baseLow = B.l[best.lowIdx];
   const span = first.high - baseLow;
   const pivotPos = span > 0 ? (pivot - baseLow) / span : 1;
@@ -498,6 +510,15 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
       want: `≤ ${num(P.maxRangeRatio)}×`,
       pass: Number.isFinite(rangeContraction) ? rangeContraction <= P.maxRangeRatio : null,
       required: false,
+    },
+    {
+      id: "v_recent",
+      group: "volume",
+      label: "Last three sessions' range vs the base",
+      value: Number.isFinite(recentRange) ? num(recentRange) + "×" : "n/a",
+      want: Number.isFinite(P.maxRecentRange) ? `≤ ${num(P.maxRecentRange)}×` : "reported",
+      pass: Number.isFinite(recentRange) ? recentRange <= P.maxRecentRange : null,
+      required: Number.isFinite(P.maxRecentRange),
     },
     {
       id: "v_pin",
@@ -600,6 +621,7 @@ export function analyze(B: Bars, I: Ind, t: number, P: Params = DEFAULTS, opts: 
       dryUp,
       lowDay,
       rangeContraction,
+      recentRange,
       pivotPos,
       finalBars: endF - last.hi,
       rs,

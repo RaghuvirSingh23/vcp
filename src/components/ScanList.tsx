@@ -35,6 +35,7 @@ export const FAIL_LABEL: Record<string, string> = {
   c_bars: "pivot too new",
   v_dry: "volume not dry",
   v_range: "bars not tight",
+  v_recent: "still swinging",
   v_pin: "pinned price",
   none: "no base",
 };

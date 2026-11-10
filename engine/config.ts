@@ -15,6 +15,19 @@ export interface Params {
   /** TLSMW: most constructive bases correct 10-35%; deeper is acceptable only up to ~50%. */
   idealBaseDepth: number;
   maxBaseDepth: number;
+  /** A base is a correction, not a wiggle in an advance: its deepest point must be at least this far under its high. */
+  minBaseDepth: number;
+  /**
+   * A contraction is over once price has won back half of it. A pullback that starts
+   * lower than that is the previous low being retested, not the next contraction.
+   * (The same rule against the whole base is always applied.)
+   */
+  nestedRetest: boolean;
+  /**
+   * Median true range of the last three sessions over the base's median. Above this
+   * the right edge is still swinging: a dip that has bounced, not a pause.
+   */
+  maxRecentRange: number;
   /** The base must follow an advance. O'Neil/Minervini: at least ~30%. */
   minPriorAdvance: number;
   priorAdvanceLookback: number;
@@ -100,6 +113,9 @@ export const DEFAULTS: Params = {
   failedBreakoutTol: 0.05,
   idealBaseDepth: 0.35,
   maxBaseDepth: 0.5,
+  minBaseDepth: 0,
+  nestedRetest: false,
+  maxRecentRange: Infinity,
   minPriorAdvance: 0.3,
   priorAdvanceLookback: 252,
   maxFinalDepth: 0.1,
